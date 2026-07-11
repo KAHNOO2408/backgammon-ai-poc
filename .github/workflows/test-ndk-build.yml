@@ -46,7 +46,7 @@ jobs:
         working-directory: source
         run: |
           echo "Using NDK at: $NDK_HOME"
-          $NDK_HOME/ndk-build -j4 V=1 2>&1 | tee ../build.log
+          $NDK_HOME/ndk-build APP_ABI=armeabi-v7a -j4 V=1 2>&1 | tee ../build.log
         continue-on-error: true
 
       - name: Search for build output (.so files)
