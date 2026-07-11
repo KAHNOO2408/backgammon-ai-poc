@@ -1,0 +1,80 @@
+name: Test Android Build - wildbg engine
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Clone wildbg source
+        run: |
+          git clone --depth 1 https://github.com/carsten-wenderdel/wildbg.git source
+
+      - name: Show source structure
+        run: |
+          echo "=== crates ==="
+          ls -la source/crates
+          echo "=== wildbg-c crate ==="
+          ls -la source/crates/wildbg-c || echo "not found, will inspect crates dir above"
+          echo "=== Cargo.toml of wildbg-c (if found) ==="
+          cat source/crates/wildbg-c/Cargo.toml || true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Android targets to Rust
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;26.3.11579264"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Build wildbg-c for Android (arm64-v8a + armeabi-v7a + x86_64)
+        working-directory: source
+        run: |
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ../jniLibs build --release -p wildbg-c 2>&1 | tee ../build.log
+        continue-on-error: true
+
+      - name: Search for build output (.so files and header)
+        run: |
+          echo "=== .so files ==="
+          find . -name "*.so" || echo "none found"
+          echo "=== wildbg.h header ==="
+          find source -name "wildbg.h" || echo "none found"
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+      - name: Upload .so libraries (always, even if partial)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-libs
+          path: jniLibs/**
+          if-no-files-found: warn
+
+      - name: Upload C header
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wildbg-header
+          path: source/crates/wildbg-c/wildbg.h
+          if-no-files-found: warn
