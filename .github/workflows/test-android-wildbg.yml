@@ -12,10 +12,10 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v4
 
-      - name: Clone wildbg source
+      - name: Clone wildbg source (nets branch - strong networks)
         run: |
-          git clone --depth 1 https://github.com/carsten-wenderdel/wildbg.git source
-
+          git clone --depth 1 --branch nets https://github.com/carsten-wenderdel/wildbg.git source
+          
       - name: Show source structure
         run: |
           echo "=== crates ==="
