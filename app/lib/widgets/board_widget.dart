@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/backgammon_position.dart';
 
@@ -7,6 +8,7 @@ class BoardWidget extends StatelessWidget {
   final Set<int> legalToPoints;
   final int? selectedFrom;
   final Set<int> lastMovePoints;
+  final List<PipMove>? hintMoves;
   final void Function(int point) onTapPoint;
 
   const BoardWidget({
@@ -17,6 +19,7 @@ class BoardWidget extends StatelessWidget {
     required this.selectedFrom,
     required this.lastMovePoints,
     required this.onTapPoint,
+    this.hintMoves,
   });
 
   @override
@@ -26,22 +29,44 @@ class BoardWidget extends StatelessWidget {
 
     return AspectRatio(
       aspectRatio: 1.35,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF4E342E),
-          border: Border.all(color: Colors.black, width: 3),
-        ),
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            Expanded(child: _row(topPoints, top: true)),
-            _barAndOffRow(),
-            Expanded(child: _row(bottomPoints, top: false)),
-          ],
-        ),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8A5A34), Color(0xFF4E2F1A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF2B1810), width: 5),
+              boxShadow: const [
+                BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 3)),
+              ],
+            ),
+            padding: const EdgeInsets.all(_pad),
+            child: Column(
+              children: [
+                Expanded(child: _row(topPoints, top: true)),
+                _barAndOffRow(),
+                Expanded(child: _row(bottomPoints, top: false)),
+              ],
+            ),
+          ),
+          if (hintMoves != null && hintMoves!.isNotEmpty)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _ArrowPainter(hintMoves!)),
+              ),
+            ),
+        ],
       ),
     );
   }
+
+  static const double _pad = 4;
+  static const double _barGap = 18;
+  static const double _barHeight = 60;
 
   Widget _row(List<int> pointsInOrder, {required bool top}) {
     final left = pointsInOrder.sublist(0, 6);
@@ -49,7 +74,7 @@ class BoardWidget extends StatelessWidget {
     return Row(
       children: [
         ...left.map((p) => Expanded(child: _pointWidget(p, top: top))),
-        const SizedBox(width: 18),
+        const SizedBox(width: _barGap),
         ...right.map((p) => Expanded(child: _pointWidget(p, top: top))),
       ],
     );
@@ -65,7 +90,7 @@ class BoardWidget extends StatelessWidget {
 
     final checkers = List.generate(count.abs(), (_) => _checker(isPlayerA));
     final triangleColor =
-        point.isEven ? const Color(0xFFD9B98A) : const Color(0xFF7B4B2A);
+        point.isEven ? const Color(0xFFE8C79A) : const Color(0xFF8B5A2B);
 
     Color? overlay;
     if (isSelected) {
@@ -146,7 +171,7 @@ class BoardWidget extends StatelessWidget {
     final offIsLegalTo = legalToPoints.contains(offPoint);
 
     return SizedBox(
-      height: 60,
+      height: _barHeight,
       child: Row(
         children: [
           Expanded(
@@ -226,6 +251,91 @@ class BoardWidget extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Computes the on-screen center of a point/bar/off, matching the layout
+/// math used by [BoardWidget] above, so hint arrows land in the right spot.
+class _PointLayout {
+  static Offset centerOf(int point, double width, double height) {
+    const pad = BoardWidget._pad;
+    const barGap = BoardWidget._barGap;
+    const barHeight = BoardWidget._barHeight;
+
+    if (point == barPoint) return Offset(width / 2, height / 2);
+    if (point == offPoint) return Offset(width - 45, height / 2);
+
+    final usableWidth = width - pad * 2;
+    final halfWidth = (usableWidth - barGap) / 2;
+    final colWidth = halfWidth / 6;
+    final sectionHeight = (height - pad * 2 - barHeight) / 2;
+
+    final isTop = point >= 13 && point <= 24;
+    double x;
+    double y;
+    if (isTop) {
+      if (point <= 18) {
+        final i = point - 13;
+        x = pad + i * colWidth + colWidth / 2;
+      } else {
+        final j = point - 19;
+        x = pad + halfWidth + barGap + j * colWidth + colWidth / 2;
+      }
+      y = pad + sectionHeight / 2;
+    } else {
+      if (point >= 7) {
+        final i = 12 - point;
+        x = pad + i * colWidth + colWidth / 2;
+      } else {
+        final j = 6 - point;
+        x = pad + halfWidth + barGap + j * colWidth + colWidth / 2;
+      }
+      y = pad + sectionHeight + barHeight + sectionHeight / 2;
+    }
+    return Offset(x, y);
+  }
+}
+
+class _ArrowPainter extends CustomPainter {
+  final List<PipMove> moves;
+  _ArrowPainter(this.moves);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = Colors.redAccent.shade700
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (final m in moves) {
+      final from = _PointLayout.centerOf(m.from, size.width, size.height);
+      final to = _PointLayout.centerOf(m.to, size.width, size.height);
+      canvas.drawLine(from, to, linePaint);
+      _drawArrowHead(canvas, from, to, linePaint);
+    }
+  }
+
+  void _drawArrowHead(Canvas canvas, Offset from, Offset to, Paint paint) {
+    const arrowLength = 14.0;
+    const arrowAngle = 0.5;
+    final angle = (to - from).direction;
+    final p1 = to -
+        Offset(arrowLength * cos(angle - arrowAngle), arrowLength * sin(angle - arrowAngle));
+    final p2 = to -
+        Offset(arrowLength * cos(angle + arrowAngle), arrowLength * sin(angle + arrowAngle));
+    final headPaint = Paint()
+      ..color = paint.color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(path, headPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) => true;
 }
 
 class _TrianglePainter extends CustomPainter {
