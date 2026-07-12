@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/backgammon_position.dart';
 import '../wildbg_adapter.dart';
 import '../widgets/board_widget.dart';
+import '../widgets/dice_widget.dart';
 import '../wildbg_bindings.dart';
 
 class GameScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _GameScreenState extends State<GameScreen> {
   List<List<PipMove>> _legalSequences = [];
   final List<PipMove> _movesMade = [];
   int? _selectedFrom;
+  Set<int> _lastMovePoints = {};
   String _status = 'Tap "Roll Dice" to start.';
   bool _isAiThinking = false;
   WildbgEngine? _engine;
@@ -45,6 +47,19 @@ class _GameScreenState extends State<GameScreen> {
 
   String _playerName(Player p) => p == _humanPlayer ? 'You' : 'Computer';
 
+  void _newGame() {
+    setState(() {
+      _position = BackgammonPosition.starting();
+      _currentPlayer = Player.a;
+      _dice = [];
+      _movesMade.clear();
+      _legalSequences = [];
+      _selectedFrom = null;
+      _lastMovePoints = {};
+      _status = 'Tap "Roll Dice" to start.';
+    });
+  }
+
   void _rollDice() {
     if (_dice.isNotEmpty) return;
     final d1 = _random.nextInt(6) + 1;
@@ -56,6 +71,7 @@ class _GameScreenState extends State<GameScreen> {
       _dice = [d1, d2];
       _movesMade.clear();
       _selectedFrom = null;
+      _lastMovePoints = {};
       _legalSequences = seqs;
       _status = noMoves
           ? '${_playerName(_currentPlayer)} rolled $d1-$d2 - no legal moves.'
@@ -115,6 +131,7 @@ class _GameScreenState extends State<GameScreen> {
         _position = _position.applyMove(_currentPlayer, move);
         _movesMade.add(move);
         _selectedFrom = null;
+        _lastMovePoints = _pointsOf(move);
       });
       _checkTurnComplete();
     } else if (_legalFromPoints.contains(point)) {
@@ -124,6 +141,11 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  Set<int> _pointsOf(PipMove m) => {
+        if (m.from != barPoint && m.from != offPoint) m.from,
+        if (m.to != barPoint && m.to != offPoint) m.to,
+      };
+
   void _checkTurnComplete() {
     final maxLen = _legalSequences.isEmpty ? 0 : _legalSequences.first.length;
     if (_movesMade.length >= maxLen) {
@@ -132,7 +154,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _finishTurnAfterDelay() {
-    Future.delayed(const Duration(milliseconds: 400), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
       if (_position.hasWon(_currentPlayer)) {
         setState(() {
@@ -154,7 +176,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _playAiTurn() async {
     setState(() => _isAiThinking = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 500));
 
     final engine = _engine;
     if (engine == null || _legalSequences.isEmpty || _legalSequences.first.isEmpty) {
@@ -168,26 +190,59 @@ class _GameScreenState extends State<GameScreen> {
     final converted =
         wildbgMoves.map((m) => fromWildbgMoveStep(m, _currentPlayer)).toList();
 
-    var pos = _position;
+    setState(() => _isAiThinking = false);
+
+    // Apply the computer's moves one at a time so you can follow along.
     for (final m in converted) {
-      pos = pos.applyMove(_currentPlayer, m);
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      setState(() {
+        _position = _position.applyMove(_currentPlayer, m);
+        _movesMade.add(m);
+        _lastMovePoints = _pointsOf(m);
+        _status = 'Computer played $m';
+      });
     }
 
-    setState(() {
-      _position = pos;
-      _movesMade
-        ..clear()
-        ..addAll(converted);
-      _isAiThinking = false;
-      _status = 'Computer played: ${converted.join(', ')}';
-    });
     _finishTurnAfterDelay();
+  }
+
+  void _showHint() {
+    if (_engine == null || _dice.isEmpty || _currentPlayer != _humanPlayer) return;
+    final pips = toWildbgPips(_position, _currentPlayer);
+    final wildbgMoves = _engine!.bestMove(pips, _dice[0], _dice[1]);
+    final converted =
+        wildbgMoves.map((m) => fromWildbgMoveStep(m, _currentPlayer)).toList();
+    final text =
+        converted.isEmpty ? 'No move available.' : converted.join(',  ');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Suggested move: $text'),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Backgammon')),
+      appBar: AppBar(
+        title: const Text('Backgammon'),
+        actions: [
+          IconButton(
+            tooltip: 'Hint',
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: (_dice.isNotEmpty && _currentPlayer == _humanPlayer)
+                ? _showHint
+                : null,
+          ),
+          IconButton(
+            tooltip: 'New game',
+            icon: const Icon(Icons.refresh),
+            onPressed: _newGame,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -201,8 +256,12 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(_status, textAlign: TextAlign.center),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Text(
+                  _status,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -212,18 +271,18 @@ class _GameScreenState extends State<GameScreen> {
                   legalToPoints:
                       _selectedFrom == null ? {} : _legalToPointsFor(_selectedFrom!),
                   selectedFrom: _selectedFrom,
+                  lastMovePoints: _lastMovePoints,
                   onTapPoint: _onTapPoint,
                 ),
               ),
-              const SizedBox(height: 16),
-              if (_dice.isNotEmpty)
-                Text('Dice: ${_dice.join(' - ')}', style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 12),
+              DiceWidget(dice: _dice),
               if (_isAiThinking)
                 const Padding(
-                  padding: EdgeInsets.all(8),
+                  padding: EdgeInsets.all(12),
                   child: CircularProgressIndicator(),
                 ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: (_dice.isEmpty && !_isAiThinking && _engine != null)
                     ? _rollDice
