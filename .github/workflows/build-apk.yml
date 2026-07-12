@@ -1,0 +1,115 @@
+name: Build Backgammon AI APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      # ---------- Native engine (validated separately before) ----------
+
+      - name: Clone wildbg source (nets branch - strong networks)
+        run: |
+          git clone --depth 1 --branch nets https://github.com/carsten-wenderdel/wildbg.git wildbg-source
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Android targets to Rust
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;26.3.11579264"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Patch wildbg-c Cargo.toml to build cdylib
+        working-directory: wildbg-source
+        run: |
+          python3 - <<'EOF'
+          import re
+          path = "crates/wildbg-c/Cargo.toml"
+          with open(path) as f:
+              content = f.read()
+
+          if '[lib]' in content:
+              def repl(m):
+                  line = m.group(0)
+                  inner = re.search(r'\[(.*)\]', line).group(1)
+                  types = [t.strip().strip('"').strip("'") for t in inner.split(',') if t.strip()]
+                  if 'cdylib' not in types:
+                      types.insert(0, 'cdylib')
+                  new_list = ', '.join(f'"{t}"' for t in types)
+                  return f'crate-type = [{new_list}]'
+              if re.search(r'crate-type\s*=\s*\[[^\]]*\]', content):
+                  content = re.sub(r'crate-type\s*=\s*\[[^\]]*\]', repl, content, count=1)
+              else:
+                  content = content.replace('[lib]', '[lib]\ncrate-type = ["cdylib", "staticlib"]', 1)
+          else:
+              content += '\n[lib]\ncrate-type = ["cdylib", "staticlib"]\n'
+
+          with open(path, 'w') as f:
+              f.write(content)
+
+          print("=== Patched Cargo.toml ===")
+          print(content)
+          EOF
+
+      - name: Build wildbg native library for Android
+        working-directory: wildbg-source
+        run: |
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ../jniLibs build --release -p wildbg-c
+
+      - name: Verify native libraries were produced
+        run: |
+          find jniLibs -name "*.so"
+          test -f jniLibs/arm64-v8a/libwildbg.so
+
+      # ---------- Flutter app ----------
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Scaffold a fresh Flutter project
+        run: |
+          flutter create --platforms=android --org com.benjamin.backgammon --project-name backgammon_ai flutter_app
+
+      - name: Overlay our custom pubspec.yaml and lib/
+        run: |
+          cp app/pubspec.yaml flutter_app/pubspec.yaml
+          rm -rf flutter_app/lib
+          cp -r app/lib flutter_app/lib
+
+      - name: Copy native libraries into the Android project
+        run: |
+          mkdir -p flutter_app/android/app/src/main/jniLibs
+          cp -r jniLibs/* flutter_app/android/app/src/main/jniLibs/
+
+      - name: Get Flutter dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: flutter_app
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: backgammon-ai-apk
+          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
