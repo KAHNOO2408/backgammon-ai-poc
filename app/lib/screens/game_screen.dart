@@ -22,6 +22,7 @@ class _GameScreenState extends State<GameScreen> {
   final List<PipMove> _movesMade = [];
   int? _selectedFrom;
   Set<int> _lastMovePoints = {};
+  List<PipMove>? _hintMoves;
   String _status = 'Tap "Roll Dice" to start.';
   bool _isAiThinking = false;
   WildbgEngine? _engine;
@@ -56,6 +57,7 @@ class _GameScreenState extends State<GameScreen> {
       _legalSequences = [];
       _selectedFrom = null;
       _lastMovePoints = {};
+      _hintMoves = null;
       _status = 'Tap "Roll Dice" to start.';
     });
   }
@@ -72,6 +74,7 @@ class _GameScreenState extends State<GameScreen> {
       _movesMade.clear();
       _selectedFrom = null;
       _lastMovePoints = {};
+      _hintMoves = null;
       _legalSequences = seqs;
       _status = noMoves
           ? '${_playerName(_currentPlayer)} rolled $d1-$d2 - no legal moves.'
@@ -119,7 +122,10 @@ class _GameScreenState extends State<GameScreen> {
 
     if (_selectedFrom == null) {
       if (_legalFromPoints.contains(point)) {
-        setState(() => _selectedFrom = point);
+        setState(() {
+          _selectedFrom = point;
+          _hintMoves = null;
+        });
       }
       return;
     }
@@ -132,6 +138,7 @@ class _GameScreenState extends State<GameScreen> {
         _movesMade.add(move);
         _selectedFrom = null;
         _lastMovePoints = _pointsOf(move);
+        _hintMoves = null;
       });
       _checkTurnComplete();
     } else if (_legalFromPoints.contains(point)) {
@@ -169,6 +176,7 @@ class _GameScreenState extends State<GameScreen> {
         _movesMade.clear();
         _legalSequences = [];
         _selectedFrom = null;
+        _hintMoves = null;
         _status = "${_playerName(_currentPlayer)}'s turn - tap Roll Dice.";
       });
     });
@@ -207,20 +215,25 @@ class _GameScreenState extends State<GameScreen> {
     _finishTurnAfterDelay();
   }
 
-  void _showHint() {
+  void _toggleHint() {
+    if (_hintMoves != null) {
+      setState(() => _hintMoves = null);
+      return;
+    }
     if (_engine == null || _dice.isEmpty || _currentPlayer != _humanPlayer) return;
+    if (_movesMade.isNotEmpty) return; // only offer a hint for the whole turn, before any move is made
+
     final pips = toWildbgPips(_position, _currentPlayer);
     final wildbgMoves = _engine!.bestMove(pips, _dice[0], _dice[1]);
     final converted =
         wildbgMoves.map((m) => fromWildbgMoveStep(m, _currentPlayer)).toList();
-    final text =
-        converted.isEmpty ? 'No move available.' : converted.join(',  ');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Suggested move: $text'),
-        duration: const Duration(seconds: 4),
-      ),
-    );
+
+    setState(() {
+      _hintMoves = converted;
+      _status = converted.isEmpty
+          ? 'No move available.'
+          : 'Suggested: ${converted.join(',  ')}';
+    });
   }
 
   @override
@@ -231,9 +244,11 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           IconButton(
             tooltip: 'Hint',
-            icon: const Icon(Icons.lightbulb_outline),
-            onPressed: (_dice.isNotEmpty && _currentPlayer == _humanPlayer)
-                ? _showHint
+            icon: Icon(_hintMoves != null ? Icons.lightbulb : Icons.lightbulb_outline),
+            onPressed: (_dice.isNotEmpty &&
+                    _currentPlayer == _humanPlayer &&
+                    (_movesMade.isEmpty || _hintMoves != null))
+                ? _toggleHint
                 : null,
           ),
           IconButton(
@@ -272,6 +287,7 @@ class _GameScreenState extends State<GameScreen> {
                       _selectedFrom == null ? {} : _legalToPointsFor(_selectedFrom!),
                   selectedFrom: _selectedFrom,
                   lastMovePoints: _lastMovePoints,
+                  hintMoves: _hintMoves,
                   onTapPoint: _onTapPoint,
                 ),
               ),
