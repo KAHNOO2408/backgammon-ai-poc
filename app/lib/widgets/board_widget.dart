@@ -249,10 +249,8 @@ class BoardWidget extends StatelessWidget {
         point.isEven ? const Color(0xFFE8C79A) : const Color(0xFF8B5A2B);
 
     Color? overlay;
-    if (isSelected) {
-      overlay = Colors.yellow.withOpacity(0.45);
-    } else if (isLegalFrom || isLegalTo) {
-      overlay = Colors.lightGreenAccent.withOpacity(0.4);
+    if (isLegalFrom && !isSelected) {
+      overlay = Colors.lightGreenAccent.withOpacity(0.3);
     } else if (isLastMove) {
       overlay = Colors.orangeAccent.withOpacity(0.35);
     }
@@ -267,11 +265,62 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
+          // Checkers auto-shrink/overlap to always fit within the triangle's
+          // bounds, no matter how many are stacked on this point.
           Positioned.fill(
-            child: _checkerStack(count.abs(), isPlayerA, top),
+            child: isSelected
+                ? TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 1.0, end: 1.18),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    builder: (context, scale, child) =>
+                        Transform.scale(scale: scale, child: child),
+                    child: _checkerStack(count.abs(), isPlayerA, top),
+                  )
+                : _checkerStack(count.abs(), isPlayerA, top),
           ),
+          if (isLegalTo) Positioned.fill(child: _legalToRing(count.abs(), top)),
         ],
       ),
+    );
+  }
+
+  Widget _legalToRing(int existingCount, bool top) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availH = constraints.maxHeight;
+        final availW = constraints.maxWidth;
+        final diameter = (availW * 0.82).clamp(8.0, 20.0);
+        final naturalStep = diameter + 1;
+        final n = existingCount + 1;
+        final neededHeight = naturalStep * n;
+        final step = n <= 1
+            ? 0.0
+            : (neededHeight <= availH
+                ? naturalStep
+                : ((availH - diameter) / (n - 1)).clamp(0.0, naturalStep));
+        final offset = existingCount * step;
+
+        return Positioned(
+          top: top ? offset : null,
+          bottom: top ? null : offset,
+          left: (availW - diameter) / 2,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.7, end: 1.0),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+            child: Container(
+              width: diameter,
+              height: diameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF4CD964), width: 3),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -391,6 +440,8 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
+  /// Combines consecutive moves of the same checker (e.g. 24/18 then 18/13)
+  /// into a single move (24/13) so the hint draws one arrow, not two.
   static List<PipMove> _combineChain(List<PipMove> moves) {
     if (moves.isEmpty) return moves;
     final result = <PipMove>[];
