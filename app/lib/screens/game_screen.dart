@@ -26,6 +26,7 @@ class _GameScreenState extends State<GameScreen> {
   List<PipMove> _autoHint = [];
   PipMove? _animatingMove;
   bool _animatingIsPlayerA = true;
+  final List<BackgammonPosition> _positionHistory = [];
   String _status = 'Tap "Roll Dice" to start.';
   bool _isAiThinking = false;
   WildbgEngine? _engine;
@@ -63,6 +64,7 @@ class _GameScreenState extends State<GameScreen> {
       _lastMovePoints = {};
       _autoHint = [];
       _animatingMove = null;
+      _positionHistory.clear();
       _status = 'Tap "Roll Dice" to start.';
     });
   }
@@ -78,6 +80,7 @@ class _GameScreenState extends State<GameScreen> {
       _dice = [d1, d2];
       _rolled = true;
       _movesMade.clear();
+      _positionHistory.clear();
       _selectedFrom = null;
       _lastMovePoints = {};
       _legalSequences = seqs;
@@ -156,6 +159,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _animateAndApplyMove(PipMove move) async {
+    _positionHistory.add(_position);
     setState(() {
       _animatingMove = move;
       _animatingIsPlayerA = _currentPlayer == Player.a;
@@ -176,6 +180,25 @@ class _GameScreenState extends State<GameScreen> {
         if (m.from != barPoint && m.from != offPoint) m.from,
         if (m.to != barPoint && m.to != offPoint) m.to,
       };
+
+  bool get _canUndo =>
+      _positionHistory.isNotEmpty &&
+      _currentPlayer == _humanPlayer &&
+      _animatingMove == null &&
+      !_isAiThinking;
+
+  void _undoLastMove() {
+    if (!_canUndo) return;
+    setState(() {
+      _position = _positionHistory.removeLast();
+      _movesMade.removeLast();
+      _selectedFrom = null;
+      _lastMovePoints = _movesMade.isNotEmpty ? _pointsOf(_movesMade.last) : {};
+      _autoHint =
+          (_dice.length == 2 && _engine != null) ? _computeBestMove(_dice[0], _dice[1]) : [];
+      _status = '${_playerName(_currentPlayer)} undid a move.';
+    });
+  }
 
   /// The position to actually render on the main board. While a move is
   /// animating, the moving checker is removed from its origin here (it's
@@ -248,6 +271,7 @@ class _GameScreenState extends State<GameScreen> {
 
     setState(() => _isAiThinking = false);
 
+    // Animate and apply the computer's moves one at a time so you can follow along.
     for (final m in converted) {
       if (!mounted) return;
       setState(() {
@@ -275,6 +299,11 @@ class _GameScreenState extends State<GameScreen> {
       appBar: AppBar(
         title: const Text('Backgammon'),
         actions: [
+          IconButton(
+            tooltip: 'Undo move',
+            icon: const Icon(Icons.undo),
+            onPressed: _canUndo ? _undoLastMove : null,
+          ),
           IconButton(
             tooltip: 'New game',
             icon: const Icon(Icons.refresh),
