@@ -164,7 +164,7 @@ class _GameScreenState extends State<GameScreen> {
       _animatingMove = move;
       _animatingIsPlayerA = _currentPlayer == Player.a;
     });
-    await Future.delayed(const Duration(milliseconds: 320));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
     setState(() {
       _position = _position.applyMove(_currentPlayer, move);
@@ -278,7 +278,7 @@ class _GameScreenState extends State<GameScreen> {
         _animatingMove = m;
         _animatingIsPlayerA = _currentPlayer == Player.a;
       });
-      await Future.delayed(const Duration(milliseconds: 320));
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       setState(() {
         _position = _position.applyMove(_currentPlayer, m);
@@ -287,7 +287,7 @@ class _GameScreenState extends State<GameScreen> {
         _animatingMove = null;
         _status = 'Computer played $m';
       });
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 150));
     }
 
     _finishTurnAfterDelay();
