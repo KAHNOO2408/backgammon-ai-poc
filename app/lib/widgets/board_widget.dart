@@ -23,99 +23,107 @@ class BoardWidget extends StatelessWidget {
     this.interactive = true,
   });
 
-  static const double _pad = 4;
-  static const double _barWidth = 34;
+  static const double _padXFrac = 0.03;
+  static const double _padYFrac = 0.045;
+  static const double _barFrac = 0.045;
   static const double _offWidth = 46;
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.35,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF8A5A34), Color(0xFF4E2F1A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF2B1810), width: 5),
-              boxShadow: const [
-                BoxShadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 3)),
-              ],
-            ),
-            padding: const EdgeInsets.all(_pad),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _half(
-                    top: const [13, 14, 15, 16, 17, 18],
-                    bottom: const [12, 11, 10, 9, 8, 7],
-                  ),
-                ),
-                _verticalBar(),
-                Expanded(
-                  child: _half(
-                    top: const [19, 20, 21, 22, 23, 24],
-                    bottom: const [6, 5, 4, 3, 2, 1],
-                  ),
-                ),
-                _offTray(),
-              ],
-            ),
-          ),
-          if (hintMoves != null && hintMoves!.isNotEmpty)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final w = constraints.maxWidth;
-                    final h = constraints.maxHeight;
-                    final n = hintMoves!.length;
-                    return Stack(
-                      children: List.generate(n, (i) {
-                        final m = hintMoves![i];
-                        var from = _PointLayout.centerOf(m.from, w, h);
-                        var to = _PointLayout.centerOf(m.to, w, h);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final h = constraints.maxHeight;
+                final padX = w * _padXFrac;
+                final padY = h * _padYFrac;
+                final barW = w * _barFrac;
 
-                        final dir = to - from;
-                        final len = dir.distance;
-                        if (len > 0) {
-                          final perp = Offset(-dir.dy, dir.dx) / len;
-                          final offsetIndex = i - (n - 1) / 2;
-                          final shift = perp * offsetIndex * 14;
-                          from += shift;
-                          to += shift;
-                        }
-
-                        final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
-                        final angle = (to - from).direction;
-                        final arrowLength = (to - from).distance.clamp(30.0, 10000.0);
-                        const arrowThickness = 24.0;
-
-                        return Positioned(
-                          left: mid.dx - arrowLength / 2,
-                          top: mid.dy - arrowThickness / 2,
-                          width: arrowLength,
-                          height: arrowThickness,
-                          child: Transform.rotate(
-                            angle: angle,
-                            child: Image.asset(
-                              'assets/images/arrow.png',
-                              fit: BoxFit.fill,
+                return Stack(
+                  children: [
+                    Container(
+                      decoration: const BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage('assets/images/wood_board.png'),
+                          fit: BoxFit.fill,
+                        ),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: padX, vertical: padY),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _half(
+                              top: const [13, 14, 15, 16, 17, 18],
+                              bottom: const [12, 11, 10, 9, 8, 7],
                             ),
                           ),
-                        );
-                      }),
-                    );
-                  },
-                ),
-              ),
+                          _verticalBar(barW),
+                          Expanded(
+                            child: _half(
+                              top: const [19, 20, 21, 22, 23, 24],
+                              bottom: const [6, 5, 4, 3, 2, 1],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hintMoves != null && hintMoves!.isNotEmpty)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Stack(
+                            children: List.generate(hintMoves!.length, (i) {
+                              final n = hintMoves!.length;
+                              final m = hintMoves![i];
+                              var from = _PointLayout.centerOf(m.from, w, h);
+                              var to = _PointLayout.centerOf(m.to, w, h);
+
+                              final dir = to - from;
+                              final len = dir.distance;
+                              if (len > 0) {
+                                final perp = Offset(-dir.dy, dir.dx) / len;
+                                final offsetIndex = i - (n - 1) / 2;
+                                final shift = perp * offsetIndex * 14;
+                                from += shift;
+                                to += shift;
+                              }
+
+                              final mid =
+                                  Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
+                              final angle = (to - from).direction;
+                              final arrowLength =
+                                  (to - from).distance.clamp(30.0, 10000.0);
+                              const arrowThickness = 24.0;
+
+                              return Positioned(
+                                left: mid.dx - arrowLength / 2,
+                                top: mid.dy - arrowThickness / 2,
+                                width: arrowLength,
+                                height: arrowThickness,
+                                child: Transform.rotate(
+                                  angle: angle,
+                                  child: Image.asset(
+                                    'assets/images/arrow.png',
+                                    fit: BoxFit.fill,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
-        ],
-      ),
+          ),
+        ),
+        _offTray(),
+      ],
     );
   }
 
@@ -123,10 +131,15 @@ class BoardWidget extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: Row(children: top.map((p) => Expanded(child: _pointWidget(p, top: true))).toList()),
+          child: Row(
+              children:
+                  top.map((p) => Expanded(child: _pointWidget(p, top: true))).toList()),
         ),
         Expanded(
-          child: Row(children: bottom.map((p) => Expanded(child: _pointWidget(p, top: false))).toList()),
+          child: Row(
+              children: bottom
+                  .map((p) => Expanded(child: _pointWidget(p, top: false)))
+                  .toList()),
         ),
       ],
     );
@@ -178,8 +191,6 @@ class BoardWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Positioned.fill is essential here - without it, Stack pins this
-          // Column to the top-left corner instead of centering it.
           Positioned.fill(
             child: Column(
               mainAxisAlignment: top ? MainAxisAlignment.start : MainAxisAlignment.end,
@@ -223,21 +234,13 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
-  Widget _verticalBar() {
+  Widget _verticalBar(double width) {
     final barIsLegalFrom = legalFromPoints.contains(barPoint);
     return GestureDetector(
       onTap: interactive ? () => onTapPoint(barPoint) : null,
       child: Container(
-        width: _barWidth,
-        decoration: BoxDecoration(
-          color: barIsLegalFrom
-              ? Colors.lightGreenAccent.withOpacity(0.4)
-              : Colors.black.withOpacity(0.35),
-          border: Border(
-            left: BorderSide(color: Colors.black54, width: 1),
-            right: BorderSide(color: Colors.black54, width: 1),
-          ),
-        ),
+        width: width,
+        color: barIsLegalFrom ? Colors.lightGreenAccent.withOpacity(0.35) : null,
         child: Center(
           child: SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
@@ -264,9 +267,11 @@ class BoardWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: offIsLegalTo
               ? Colors.lightGreenAccent.withOpacity(0.4)
-              : Colors.black.withOpacity(0.25),
+              : const Color(0xFF3A2415),
           border: Border.all(color: Colors.black54),
+          borderRadius: BorderRadius.circular(8),
         ),
+        margin: const EdgeInsets.only(left: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -286,25 +291,23 @@ class BoardWidget extends StatelessWidget {
   }
 }
 
-/// Computes the on-screen center of a point/bar/off, matching the layout
-/// math used by [BoardWidget] above, so hint arrows land in the right spot.
 class _PointLayout {
   static Offset centerOf(int point, double width, double height) {
-    const pad = BoardWidget._pad;
-    const barWidth = BoardWidget._barWidth;
-    const offWidth = BoardWidget._offWidth;
-
-    final usableWidth = width - pad * 2 - barWidth - offWidth;
-    final halfWidth = usableWidth / 2;
-    final colWidth = halfWidth / 6;
-    final sectionHeight = (height - pad * 2) / 2;
+    final padX = width * BoardWidget._padXFrac;
+    final padY = height * BoardWidget._padYFrac;
+    final barW = width * BoardWidget._barFrac;
 
     if (point == barPoint) {
-      return Offset(pad + halfWidth + barWidth / 2, height / 2);
+      return Offset(width / 2, height / 2);
     }
     if (point == offPoint) {
-      return Offset(pad + halfWidth * 2 + barWidth + offWidth / 2, height / 2);
+      return Offset(width - padX / 2, height / 2);
     }
+
+    final usableWidth = width - padX * 2 - barW;
+    final halfWidth = usableWidth / 2;
+    final colWidth = halfWidth / 6;
+    final sectionHeight = (height - padY * 2) / 2;
 
     final isTop = point >= 13 && point <= 24;
     double x;
@@ -312,21 +315,21 @@ class _PointLayout {
     if (isTop) {
       if (point <= 18) {
         final i = point - 13;
-        x = pad + i * colWidth + colWidth / 2;
+        x = padX + i * colWidth + colWidth / 2;
       } else {
         final j = point - 19;
-        x = pad + halfWidth + barWidth + j * colWidth + colWidth / 2;
+        x = padX + halfWidth + barW + j * colWidth + colWidth / 2;
       }
-      y = pad + sectionHeight / 2;
+      y = padY + sectionHeight / 2;
     } else {
       if (point >= 7) {
         final i = 12 - point;
-        x = pad + i * colWidth + colWidth / 2;
+        x = padX + i * colWidth + colWidth / 2;
       } else {
         final j = 6 - point;
-        x = pad + halfWidth + barWidth + j * colWidth + colWidth / 2;
+        x = padX + halfWidth + barW + j * colWidth + colWidth / 2;
       }
-      y = pad + sectionHeight + sectionHeight / 2;
+      y = padY + sectionHeight + sectionHeight / 2;
     }
     return Offset(x, y);
   }
