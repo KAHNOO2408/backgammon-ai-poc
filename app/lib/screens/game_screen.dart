@@ -84,13 +84,21 @@ class _GameScreenState extends State<GameScreen> {
       _selectedFrom = null;
       _lastMovePoints = {};
       _legalSequences = seqs;
-      _autoHint = (!noMoves && _currentPlayer == _humanPlayer && _engine != null)
-          ? _computeBestMove(d1, d2)
-          : [];
+      _autoHint = [];
       _status = noMoves
           ? '${_playerName(_currentPlayer)} rolled $d1-$d2 - no legal moves.'
           : '${_playerName(_currentPlayer)} rolled $d1-$d2.';
     });
+
+    // Wait for the dice-rolling animation to settle before showing the hint,
+    // so the arrow doesn't appear while the numbers are still spinning.
+    if (!noMoves && _currentPlayer == _humanPlayer && _engine != null) {
+      final rollToken = _dice;
+      Future.delayed(const Duration(milliseconds: 620), () {
+        if (!mounted || !_rolled || _dice != rollToken) return;
+        setState(() => _autoHint = _computeBestMove(d1, d2));
+      });
+    }
 
     if (noMoves) {
       _finishTurnAfterDelay();
@@ -293,6 +301,79 @@ class _GameScreenState extends State<GameScreen> {
     _finishTurnAfterDelay();
   }
 
+  void _showAllMoves() {
+    if (_engine == null || !_rolled || _currentPlayer != _humanPlayer || _movesMade.isNotEmpty) {
+      return;
+    }
+    final seen = <String>{};
+    final options = <_MoveOption>[];
+    for (final seq in _legalSequences) {
+      final key = seq.map((m) => '${m.from}-${m.to}').join(',');
+      if (!seen.add(key)) continue;
+      var pos = _position;
+      for (final m in seq) {
+        pos = pos.applyMove(_currentPlayer, m);
+      }
+      final eq = moveEquity(_engine!, pos, _currentPlayer);
+      options.add(_MoveOption(seq, eq));
+    }
+    if (options.isEmpty) return;
+    options.sort((a, b) => b.equity.compareTo(a.equity));
+    final best = options.first.equity;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('All moves (best to worst)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final opt = options[i];
+                      final error = best - opt.equity;
+                      return ListTile(
+                        dense: true,
+                        leading: Text('${i + 1}'),
+                        title: Text(opt.moves.join(',  ')),
+                        trailing: Text(
+                          i == 0 ? 'Best' : '-${error.toStringAsFixed(3)}',
+                          style: TextStyle(
+                            color: i == 0 ? Colors.green.shade700 : Colors.black54,
+                            fontWeight: i == 0 ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        onTap: () {
+                          setState(() => _autoHint = opt.moves);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -348,9 +429,21 @@ class _GameScreenState extends State<GameScreen> {
               const SizedBox(height: 12),
               DiceWidget(dice: _dice),
               const SizedBox(height: 12),
-              Text(
-                _autoHint.isNotEmpty ? 'Suggested move' : 'Hint board',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _autoHint.isNotEmpty ? 'Suggested move' : 'Hint board',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: (_rolled && _currentPlayer == _humanPlayer && _movesMade.isEmpty)
+                        ? _showAllMoves
+                        : null,
+                    child: const Text('All moves', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               Padding(
@@ -385,4 +478,10 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
+}
+
+class _MoveOption {
+  final List<PipMove> moves;
+  final double equity;
+  _MoveOption(this.moves, this.equity);
 }
