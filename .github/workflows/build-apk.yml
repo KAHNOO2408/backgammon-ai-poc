@@ -89,11 +89,15 @@ jobs:
         run: |
           flutter create --platforms=android --org com.benjamin.backgammon --project-name backgammon_ai flutter_app
 
-      - name: Overlay our custom pubspec.yaml and lib/
+      - name: Overlay our custom pubspec.yaml, lib/, and assets/
         run: |
           cp app/pubspec.yaml flutter_app/pubspec.yaml
           rm -rf flutter_app/lib
           cp -r app/lib flutter_app/lib
+          mkdir -p flutter_app/assets/images
+          if [ -d app/assets/images ]; then
+            cp -r app/assets/images/. flutter_app/assets/images/
+          fi
 
       - name: Copy native libraries into the Android project
         run: |
