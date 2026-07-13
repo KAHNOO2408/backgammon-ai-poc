@@ -1,15 +1,81 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 
-class DiceWidget extends StatelessWidget {
+class DiceWidget extends StatefulWidget {
   final List<int> dice;
   const DiceWidget({super.key, required this.dice});
 
   @override
+  State<DiceWidget> createState() => _DiceWidgetState();
+}
+
+class _DiceWidgetState extends State<DiceWidget> {
+  List<int> _displayValues = [];
+  Timer? _timer;
+  final _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _displayValues = List.from(widget.dice);
+  }
+
+  @override
+  void didUpdateWidget(covariant DiceWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.dice.isEmpty) {
+      _timer?.cancel();
+      setState(() => _displayValues = []);
+      return;
+    }
+    if (!_sameList(oldWidget.dice, widget.dice)) {
+      _startRollAnimation();
+    }
+  }
+
+  bool _sameList(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  void _startRollAnimation() {
+    _timer?.cancel();
+    var ticks = 0;
+    const totalTicks = 9;
+    _timer = Timer.periodic(const Duration(milliseconds: 65), (t) {
+      ticks++;
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (ticks >= totalTicks) {
+        t.cancel();
+        setState(() => _displayValues = List.from(widget.dice));
+      } else {
+        setState(() {
+          _displayValues =
+              List.generate(widget.dice.length, (_) => _random.nextInt(6) + 1);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (dice.isEmpty) return const SizedBox.shrink();
+    if (_displayValues.isEmpty) return const SizedBox.shrink();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: dice.map((d) {
+      children: _displayValues.map((d) {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: _die(d),
