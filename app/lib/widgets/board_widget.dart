@@ -8,6 +8,8 @@ class BoardWidget extends StatelessWidget {
   final int? selectedFrom;
   final Set<int> lastMovePoints;
   final List<PipMove>? hintMoves;
+  final PipMove? animatingMove;
+  final bool animatingIsPlayerA;
   final void Function(int point) onTapPoint;
   final bool interactive;
 
@@ -20,6 +22,8 @@ class BoardWidget extends StatelessWidget {
     required this.lastMovePoints,
     required this.onTapPoint,
     this.hintMoves,
+    this.animatingMove,
+    this.animatingIsPlayerA = true,
     this.interactive = true,
   });
 
@@ -117,6 +121,44 @@ class BoardWidget extends StatelessWidget {
                                     ),
                                   );
                                 }),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    if (animatingMove != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey(animatingMove),
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeInOut,
+                            builder: (context, t, child) {
+                              final from =
+                                  _PointLayout.centerOf(animatingMove!.from, w, h);
+                              final to = _PointLayout.centerOf(animatingMove!.to, w, h);
+                              final pos = Offset.lerp(from, to, t)!;
+                              const size = 18.0;
+                              return Positioned(
+                                left: pos.dx - size / 2,
+                                top: pos.dy - size / 2,
+                                width: size,
+                                height: size,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: animatingIsPlayerA
+                                          ? [Colors.white, Colors.grey.shade300]
+                                          : [Colors.grey.shade800, Colors.black],
+                                    ),
+                                    border: Border.all(color: Colors.black54, width: 1),
+                                    boxShadow: const [
+                                      BoxShadow(color: Colors.black45, blurRadius: 2),
+                                    ],
+                                  ),
+                                ),
                               );
                             },
                           ),
