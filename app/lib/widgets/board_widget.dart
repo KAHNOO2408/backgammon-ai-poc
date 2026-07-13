@@ -202,7 +202,6 @@ class BoardWidget extends StatelessWidget {
     final isLegalTo = legalToPoints.contains(point);
     final isLastMove = lastMovePoints.contains(point);
 
-    final checkers = List.generate(count.abs(), (_) => _checker(isPlayerA));
     final triangleColor =
         point.isEven ? const Color(0xFFE8C79A) : const Color(0xFF8B5A2B);
 
@@ -240,23 +239,50 @@ class BoardWidget extends StatelessWidget {
               ),
             ),
           ),
+          // Checkers auto-shrink/overlap to always fit within the triangle's
+          // bounds, no matter how many are stacked on this point.
           Positioned.fill(
-            child: Column(
-              mainAxisAlignment: top ? MainAxisAlignment.start : MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: top ? checkers : checkers.reversed.toList(),
-            ),
+            child: _checkerStack(count.abs(), isPlayerA, top),
           ),
         ],
       ),
     );
   }
 
-  Widget _checker(bool isPlayerA) {
+  Widget _checkerStack(int count, bool isPlayerA, bool top) {
+    if (count == 0) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availH = constraints.maxHeight;
+        final availW = constraints.maxWidth;
+        final diameter = (availW * 0.82).clamp(8.0, 20.0);
+        final naturalStep = diameter + 1;
+        final neededHeight = naturalStep * count;
+        final step = count <= 1
+            ? 0.0
+            : (neededHeight <= availH
+                ? naturalStep
+                : ((availH - diameter) / (count - 1)).clamp(0.0, naturalStep));
+
+        return Stack(
+          children: List.generate(count, (i) {
+            final offset = i * step;
+            return Positioned(
+              top: top ? offset : null,
+              bottom: top ? null : offset,
+              left: (availW - diameter) / 2,
+              child: _checker(isPlayerA, diameter),
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  Widget _checker(bool isPlayerA, double size) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1),
-      width: 18,
-      height: 18,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
