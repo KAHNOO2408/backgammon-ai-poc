@@ -18,6 +18,7 @@ class _GameScreenState extends State<GameScreen> {
   Player _currentPlayer = Player.a;
   final Player _humanPlayer = Player.a;
   List<int> _dice = [];
+  bool _rolled = false;
   List<List<PipMove>> _legalSequences = [];
   final List<PipMove> _movesMade = [];
   int? _selectedFrom;
@@ -55,6 +56,7 @@ class _GameScreenState extends State<GameScreen> {
       _position = BackgammonPosition.starting();
       _currentPlayer = Player.a;
       _dice = [];
+      _rolled = false;
       _movesMade.clear();
       _legalSequences = [];
       _selectedFrom = null;
@@ -66,7 +68,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _rollDice() {
-    if (_dice.isNotEmpty) return;
+    if (_rolled) return;
     final d1 = _random.nextInt(6) + 1;
     final d2 = _random.nextInt(6) + 1;
     final seqs = TurnGenerator.legalSequences(_position, _currentPlayer, [d1, d2]);
@@ -74,6 +76,7 @@ class _GameScreenState extends State<GameScreen> {
 
     setState(() {
       _dice = [d1, d2];
+      _rolled = true;
       _movesMade.clear();
       _selectedFrom = null;
       _lastMovePoints = {};
@@ -129,7 +132,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onTapPoint(int point) {
-    if (_currentPlayer != _humanPlayer || _isAiThinking || _dice.isEmpty) return;
+    if (_currentPlayer != _humanPlayer || _isAiThinking || !_rolled) return;
 
     if (_selectedFrom == null) {
       if (_legalFromPoints.contains(point)) {
@@ -174,6 +177,30 @@ class _GameScreenState extends State<GameScreen> {
         if (m.to != barPoint && m.to != offPoint) m.to,
       };
 
+  /// The position to actually render on the main board. While a move is
+  /// animating, the moving checker is removed from its origin here (it's
+  /// "in flight" as the ghost checker), so it doesn't look duplicated.
+  BackgammonPosition get _displayPosition {
+    final m = _animatingMove;
+    if (m == null) return _position;
+    final pts = List<int>.from(_position.points);
+    var barA = _position.barA;
+    var barB = _position.barB;
+    final mover = _animatingIsPlayerA ? Player.a : Player.b;
+    if (m.from == barPoint) {
+      mover == Player.a ? barA-- : barB--;
+    } else {
+      pts[m.from] += (mover == Player.a ? -1 : 1);
+    }
+    return BackgammonPosition(
+      points: pts,
+      barA: barA,
+      barB: barB,
+      offA: _position.offA,
+      offB: _position.offB,
+    );
+  }
+
   void _checkTurnComplete() {
     final maxLen = _legalSequences.isEmpty ? 0 : _legalSequences.first.length;
     if (_movesMade.length >= maxLen) {
@@ -187,13 +214,13 @@ class _GameScreenState extends State<GameScreen> {
       if (_position.hasWon(_currentPlayer)) {
         setState(() {
           _status = '${_playerName(_currentPlayer)} wins! 🎉';
-          _dice = [];
+          _rolled = false;
         });
         return;
       }
       setState(() {
         _currentPlayer = _currentPlayer.opponent;
-        _dice = [];
+        _rolled = false;
         _movesMade.clear();
         _legalSequences = [];
         _selectedFrom = null;
@@ -278,7 +305,7 @@ class _GameScreenState extends State<GameScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: BoardWidget(
-                  position: _position,
+                  position: _displayPosition,
                   legalFromPoints: _selectedFrom == null ? _legalFromPoints : {},
                   legalToPoints:
                       _selectedFrom == null ? {} : _legalToPointsFor(_selectedFrom!),
@@ -289,7 +316,9 @@ class _GameScreenState extends State<GameScreen> {
                   onTapPoint: _onTapPoint,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+              DiceWidget(dice: _dice),
+              const SizedBox(height: 12),
               Text(
                 _autoHint.isNotEmpty ? 'Suggested move' : 'Hint board',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -308,8 +337,6 @@ class _GameScreenState extends State<GameScreen> {
                   interactive: false,
                 ),
               ),
-              const SizedBox(height: 12),
-              DiceWidget(dice: _dice),
               if (_isAiThinking)
                 const Padding(
                   padding: EdgeInsets.all(12),
@@ -317,7 +344,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: (_dice.isEmpty && !_isAiThinking && _engine != null)
+                onPressed: (!_rolled && !_isAiThinking && _engine != null)
                     ? _rollDice
                     : null,
                 child: const Text('Roll Dice'),
