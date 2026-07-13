@@ -140,7 +140,12 @@ class BoardWidget extends StatelessWidget {
                             builder: (context, t, child) {
                               final from =
                                   _PointLayout.centerOf(animatingMove!.from, w, h);
-                              final to = _PointLayout.centerOf(animatingMove!.to, w, h);
+                              final existingAtDest =
+                                  (animatingMove!.to >= 1 && animatingMove!.to <= 24)
+                                      ? position.points[animatingMove!.to].abs()
+                                      : 0;
+                              final to = _PointLayout.landingOffset(
+                                  animatingMove!.to, existingAtDest, w, h);
                               const size = 18.0;
 
                               Offset posAt(double tt) {
@@ -268,16 +273,12 @@ class BoardWidget extends StatelessWidget {
           // Checkers auto-shrink/overlap to always fit within the triangle's
           // bounds, no matter how many are stacked on this point.
           Positioned.fill(
-            child: isSelected
-                ? TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 1.0, end: 1.18),
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
-                    builder: (context, scale, child) =>
-                        Transform.scale(scale: scale, child: child),
-                    child: _checkerStack(count.abs(), isPlayerA, top),
-                  )
-                : _checkerStack(count.abs(), isPlayerA, top),
+            child: _checkerStack(
+              count.abs(),
+              isPlayerA,
+              top,
+              growIndex: isSelected ? count.abs() - 1 : null,
+            ),
           ),
           if (isLegalTo) Positioned.fill(child: _legalToRing(count.abs(), top)),
         ],
@@ -324,7 +325,7 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
-  Widget _checkerStack(int count, bool isPlayerA, bool top) {
+  Widget _checkerStack(int count, bool isPlayerA, bool top, {int? growIndex}) {
     if (count == 0) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -340,13 +341,25 @@ class BoardWidget extends StatelessWidget {
                 : ((availH - diameter) / (count - 1)).clamp(0.0, naturalStep));
 
         return Stack(
+          clipBehavior: Clip.none,
           children: List.generate(count, (i) {
             final offset = i * step;
+            Widget checker = _checker(isPlayerA, diameter);
+            if (growIndex == i) {
+              checker = TweenAnimationBuilder<double>(
+                tween: Tween(begin: 1.0, end: 1.22),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                builder: (context, scale, child) =>
+                    Transform.scale(scale: scale, child: child),
+                child: checker,
+              );
+            }
             return Positioned(
               top: top ? offset : null,
               bottom: top ? null : offset,
               left: (availW - diameter) / 2,
-              child: _checker(isPlayerA, diameter),
+              child: checker,
             );
           }),
         );
@@ -461,46 +474,65 @@ class BoardWidget extends StatelessWidget {
 }
 
 class _PointLayout {
-  static Offset centerOf(int point, double width, double height) {
+  static Rect cellRect(int point, double width, double height) {
     final padX = width * BoardWidget._padXFrac;
     final padY = height * BoardWidget._padYFrac;
     final barW = width * BoardWidget._barFrac;
-
-    if (point == barPoint) {
-      return Offset(width / 2, height / 2);
-    }
-    if (point == offPoint) {
-      return Offset(width - padX / 2, height / 2);
-    }
-
     final usableWidth = width - padX * 2 - barW;
     final halfWidth = usableWidth / 2;
     final colWidth = halfWidth / 6;
     final sectionHeight = (height - padY * 2) / 2;
 
     final isTop = point >= 13 && point <= 24;
-    double x;
-    double y;
+    double left;
     if (isTop) {
       if (point <= 18) {
-        final i = point - 13;
-        x = padX + i * colWidth + colWidth / 2;
+        left = padX + (point - 13) * colWidth;
       } else {
-        final j = point - 19;
-        x = padX + halfWidth + barW + j * colWidth + colWidth / 2;
+        left = padX + halfWidth + barW + (point - 19) * colWidth;
       }
-      y = padY + sectionHeight / 2;
     } else {
       if (point >= 7) {
-        final i = 12 - point;
-        x = padX + i * colWidth + colWidth / 2;
+        left = padX + (12 - point) * colWidth;
       } else {
-        final j = 6 - point;
-        x = padX + halfWidth + barW + j * colWidth + colWidth / 2;
+        left = padX + halfWidth + barW + (6 - point) * colWidth;
       }
-      y = padY + sectionHeight + sectionHeight / 2;
     }
-    return Offset(x, y);
+    final top = isTop ? padY : padY + sectionHeight;
+    return Rect.fromLTWH(left, top, colWidth, sectionHeight);
+  }
+
+  static Offset centerOf(int point, double width, double height) {
+    if (point == barPoint) return Offset(width / 2, height / 2);
+    if (point == offPoint) {
+      final padX = width * BoardWidget._padXFrac;
+      return Offset(width - padX / 2, height / 2);
+    }
+    final r = cellRect(point, width, height);
+    return Offset(r.left + r.width / 2, r.top + r.height / 2);
+  }
+
+  /// Where the (existingCount)-th checker (0-indexed - i.e. the *next* one
+  /// to arrive) actually lands, matching the same overlap math used for
+  /// rendering the stack. Falls back to the plain center for bar/off.
+  static Offset landingOffset(int point, int existingCount, double width, double height) {
+    if (point == barPoint || point == offPoint) return centerOf(point, width, height);
+    final r = cellRect(point, width, height);
+    final isTop = point >= 13 && point <= 24;
+    final diameter = (r.width * 0.82).clamp(8.0, 20.0);
+    final naturalStep = diameter + 1;
+    final n = existingCount + 1;
+    final neededHeight = naturalStep * n;
+    final step = n <= 1
+        ? 0.0
+        : (neededHeight <= r.height
+            ? naturalStep
+            : ((r.height - diameter) / (n - 1)).clamp(0.0, naturalStep));
+    final offsetInCell = existingCount * step;
+    final y = isTop
+        ? r.top + offsetInCell + diameter / 2
+        : r.top + r.height - offsetInCell - diameter / 2;
+    return Offset(r.left + r.width / 2, y);
   }
 }
 
