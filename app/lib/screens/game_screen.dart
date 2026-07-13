@@ -22,6 +22,7 @@ class _GameScreenState extends State<GameScreen> {
   final List<PipMove> _movesMade = [];
   int? _selectedFrom;
   Set<int> _lastMovePoints = {};
+  List<PipMove> _autoHint = [];
   String _status = 'Tap "Roll Dice" to start.';
   bool _isAiThinking = false;
   WildbgEngine? _engine;
@@ -56,6 +57,7 @@ class _GameScreenState extends State<GameScreen> {
       _legalSequences = [];
       _selectedFrom = null;
       _lastMovePoints = {};
+      _autoHint = [];
       _status = 'Tap "Roll Dice" to start.';
     });
   }
@@ -73,6 +75,9 @@ class _GameScreenState extends State<GameScreen> {
       _selectedFrom = null;
       _lastMovePoints = {};
       _legalSequences = seqs;
+      _autoHint = (!noMoves && _currentPlayer == _humanPlayer && _engine != null)
+          ? _computeBestMove(d1, d2)
+          : [];
       _status = noMoves
           ? '${_playerName(_currentPlayer)} rolled $d1-$d2 - no legal moves.'
           : '${_playerName(_currentPlayer)} rolled $d1-$d2.';
@@ -83,6 +88,12 @@ class _GameScreenState extends State<GameScreen> {
     } else if (_currentPlayer != _humanPlayer) {
       _playAiTurn();
     }
+  }
+
+  List<PipMove> _computeBestMove(int d1, int d2) {
+    final pips = toWildbgPips(_position, _currentPlayer);
+    final wildbgMoves = _engine!.bestMove(pips, d1, d2);
+    return wildbgMoves.map((m) => fromWildbgMoveStep(m, _currentPlayer)).toList();
   }
 
   Set<int> get _legalFromPoints {
@@ -134,6 +145,7 @@ class _GameScreenState extends State<GameScreen> {
         _movesMade.add(move);
         _selectedFrom = null;
         _lastMovePoints = _pointsOf(move);
+        _autoHint = [];
       });
       _checkTurnComplete();
     } else if (_legalFromPoints.contains(point)) {
@@ -171,6 +183,7 @@ class _GameScreenState extends State<GameScreen> {
         _movesMade.clear();
         _legalSequences = [];
         _selectedFrom = null;
+        _autoHint = [];
         _status = "${_playerName(_currentPlayer)}'s turn - tap Roll Dice.";
       });
     });
@@ -194,7 +207,6 @@ class _GameScreenState extends State<GameScreen> {
 
     setState(() => _isAiThinking = false);
 
-    // Apply the computer's moves one at a time so you can follow along.
     for (final m in converted) {
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
@@ -209,67 +221,12 @@ class _GameScreenState extends State<GameScreen> {
     _finishTurnAfterDelay();
   }
 
-  void _showHint() {
-    if (_engine == null || _dice.isEmpty || _currentPlayer != _humanPlayer) return;
-    if (_movesMade.isNotEmpty) return; // only offer a hint for the whole turn, before any move is made
-
-    final pips = toWildbgPips(_position, _currentPlayer);
-    final wildbgMoves = _engine!.bestMove(pips, _dice[0], _dice[1]);
-    final converted =
-        wildbgMoves.map((m) => fromWildbgMoveStep(m, _currentPlayer)).toList();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                converted.isEmpty ? 'No move available.' : 'Suggested: ${converted.join(',  ')}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 12),
-              BoardWidget(
-                position: _position,
-                legalFromPoints: const {},
-                legalToPoints: const {},
-                selectedFrom: null,
-                lastMovePoints: const {},
-                hintMoves: converted,
-                onTapPoint: (_) {},
-                interactive: false,
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Backgammon'),
         actions: [
-          IconButton(
-            tooltip: 'Hint',
-            icon: const Icon(Icons.lightbulb_outline),
-            onPressed: (_dice.isNotEmpty &&
-                    _currentPlayer == _humanPlayer &&
-                    _movesMade.isEmpty)
-                ? _showHint
-                : null,
-          ),
           IconButton(
             tooltip: 'New game',
             icon: const Icon(Icons.refresh),
@@ -307,6 +264,25 @@ class _GameScreenState extends State<GameScreen> {
                   selectedFrom: _selectedFrom,
                   lastMovePoints: _lastMovePoints,
                   onTapPoint: _onTapPoint,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _autoHint.isNotEmpty ? 'Suggested move' : 'Hint board',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: BoardWidget(
+                  position: _position,
+                  legalFromPoints: const {},
+                  legalToPoints: const {},
+                  selectedFrom: null,
+                  lastMovePoints: const {},
+                  hintMoves: _autoHint,
+                  onTapPoint: (_) {},
+                  interactive: false,
                 ),
               ),
               const SizedBox(height: 12),
