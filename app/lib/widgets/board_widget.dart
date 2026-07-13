@@ -76,44 +76,49 @@ class BoardWidget extends StatelessWidget {
                     if (hintMoves != null && hintMoves!.isNotEmpty)
                       Positioned.fill(
                         child: IgnorePointer(
-                          child: Stack(
-                            children: List.generate(hintMoves!.length, (i) {
-                              final n = hintMoves!.length;
-                              final m = hintMoves![i];
-                              var from = _PointLayout.centerOf(m.from, w, h);
-                              var to = _PointLayout.centerOf(m.to, w, h);
+                          child: Builder(
+                            builder: (context) {
+                              final combined = _combineChain(hintMoves!);
+                              return Stack(
+                                children: List.generate(combined.length, (i) {
+                                  final n = combined.length;
+                                  final m = combined[i];
+                                  var from = _PointLayout.centerOf(m.from, w, h);
+                                  var to = _PointLayout.centerOf(m.to, w, h);
 
-                              final dir = to - from;
-                              final len = dir.distance;
-                              if (len > 0) {
-                                final perp = Offset(-dir.dy, dir.dx) / len;
-                                final offsetIndex = i - (n - 1) / 2;
-                                final shift = perp * offsetIndex * 14;
-                                from += shift;
-                                to += shift;
-                              }
+                                  final dir = to - from;
+                                  final len = dir.distance;
+                                  if (len > 0) {
+                                    final perp = Offset(-dir.dy, dir.dx) / len;
+                                    final offsetIndex = i - (n - 1) / 2;
+                                    final shift = perp * offsetIndex * 16;
+                                    from += shift;
+                                    to += shift;
+                                  }
 
-                              final mid =
-                                  Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
-                              final angle = (to - from).direction;
-                              final arrowLength =
-                                  (to - from).distance.clamp(30.0, 10000.0);
-                              const arrowThickness = 24.0;
+                                  final mid = Offset(
+                                      (from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
+                                  final angle = (to - from).direction;
+                                  final arrowLength =
+                                      (to - from).distance.clamp(30.0, 10000.0);
+                                  const arrowThickness = 40.0;
 
-                              return Positioned(
-                                left: mid.dx - arrowLength / 2,
-                                top: mid.dy - arrowThickness / 2,
-                                width: arrowLength,
-                                height: arrowThickness,
-                                child: Transform.rotate(
-                                  angle: angle,
-                                  child: Image.asset(
-                                    'assets/images/arrow.png',
-                                    fit: BoxFit.fill,
-                                  ),
-                                ),
+                                  return Positioned(
+                                    left: mid.dx - arrowLength / 2,
+                                    top: mid.dy - arrowThickness / 2,
+                                    width: arrowLength,
+                                    height: arrowThickness,
+                                    child: Transform.rotate(
+                                      angle: angle,
+                                      child: Image.asset(
+                                        'assets/images/arrow.png',
+                                        fit: BoxFit.fill,
+                                      ),
+                                    ),
+                                  );
+                                }),
                               );
-                            }),
+                            },
                           ),
                         ),
                       ),
@@ -179,8 +184,8 @@ class BoardWidget extends StatelessWidget {
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
           Positioned(
-            top: top ? null : 2,
-            bottom: top ? 2 : null,
+            top: top ? 2 : null,
+            bottom: top ? null : 2,
             left: 0,
             right: 0,
             child: Text(
@@ -290,6 +295,23 @@ class BoardWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static List<PipMove> _combineChain(List<PipMove> moves) {
+    if (moves.isEmpty) return moves;
+    final result = <PipMove>[];
+    var current = moves.first;
+    for (var i = 1; i < moves.length; i++) {
+      final next = moves[i];
+      if (next.from == current.to) {
+        current = PipMove(from: current.from, to: next.to);
+      } else {
+        result.add(current);
+        current = next;
+      }
+    }
+    result.add(current);
+    return result;
   }
 }
 
