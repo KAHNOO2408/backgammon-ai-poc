@@ -5,8 +5,8 @@
 // mirror the board (point i -> 25-i, and flip the sign) before calling
 // wildbg, then mirror its answer back.
 
-import 'models/backgammon_position.dart';
-import 'wildbg_bindings.dart';
+import '../models/backgammon_position.dart';
+import '../wildbg_bindings.dart';
 
 List<int> toWildbgPips(BackgammonPosition pos, Player playerOnTurn) {
   final pips = List<int>.filled(26, 0);
@@ -35,4 +35,16 @@ PipMove fromWildbgMoveStep(MoveStep step, Player playerOnTurn) {
       ? offPoint
       : (playerOnTurn == Player.a ? step.to : 25 - step.to);
   return PipMove(from: from, to: to);
+}
+
+/// Cubeless money-game equity of [resultPosition] from [mover]'s point of
+/// view, right after [mover] has finished their turn (so it's the
+/// opponent's turn next). Higher is better for [mover].
+double moveEquity(WildbgEngine engine, BackgammonPosition resultPosition, Player mover) {
+  final opponent = mover.opponent;
+  final pips = toWildbgPips(resultPosition, opponent);
+  final p = engine.probabilities(pips);
+  final opponentEquity =
+      (p.win - (1 - p.win)) + (p.winG - p.loseG) + (p.winBg - p.loseBg);
+  return -opponentEquity;
 }
