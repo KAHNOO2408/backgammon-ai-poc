@@ -23,6 +23,8 @@ class _GameScreenState extends State<GameScreen> {
   int? _selectedFrom;
   Set<int> _lastMovePoints = {};
   List<PipMove> _autoHint = [];
+  PipMove? _animatingMove;
+  bool _animatingIsPlayerA = true;
   String _status = 'Tap "Roll Dice" to start.';
   bool _isAiThinking = false;
   WildbgEngine? _engine;
@@ -58,6 +60,7 @@ class _GameScreenState extends State<GameScreen> {
       _selectedFrom = null;
       _lastMovePoints = {};
       _autoHint = [];
+      _animatingMove = null;
       _status = 'Tap "Roll Dice" to start.';
     });
   }
@@ -140,19 +143,30 @@ class _GameScreenState extends State<GameScreen> {
     final legalTos = _legalToPointsFor(_selectedFrom!);
     if (legalTos.contains(point)) {
       final move = PipMove(from: _selectedFrom!, to: point);
-      setState(() {
-        _position = _position.applyMove(_currentPlayer, move);
-        _movesMade.add(move);
-        _selectedFrom = null;
-        _lastMovePoints = _pointsOf(move);
-        _autoHint = [];
-      });
-      _checkTurnComplete();
+      setState(() => _selectedFrom = null);
+      _animateAndApplyMove(move);
     } else if (_legalFromPoints.contains(point)) {
       setState(() => _selectedFrom = point);
     } else {
       setState(() => _selectedFrom = null);
     }
+  }
+
+  Future<void> _animateAndApplyMove(PipMove move) async {
+    setState(() {
+      _animatingMove = move;
+      _animatingIsPlayerA = _currentPlayer == Player.a;
+    });
+    await Future.delayed(const Duration(milliseconds: 320));
+    if (!mounted) return;
+    setState(() {
+      _position = _position.applyMove(_currentPlayer, move);
+      _movesMade.add(move);
+      _lastMovePoints = _pointsOf(move);
+      _autoHint = [];
+      _animatingMove = null;
+    });
+    _checkTurnComplete();
   }
 
   Set<int> _pointsOf(PipMove m) => {
@@ -208,14 +222,21 @@ class _GameScreenState extends State<GameScreen> {
     setState(() => _isAiThinking = false);
 
     for (final m in converted) {
-      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      setState(() {
+        _animatingMove = m;
+        _animatingIsPlayerA = _currentPlayer == Player.a;
+      });
+      await Future.delayed(const Duration(milliseconds: 320));
       if (!mounted) return;
       setState(() {
         _position = _position.applyMove(_currentPlayer, m);
         _movesMade.add(m);
         _lastMovePoints = _pointsOf(m);
+        _animatingMove = null;
         _status = 'Computer played $m';
       });
+      await Future.delayed(const Duration(milliseconds: 200));
     }
 
     _finishTurnAfterDelay();
@@ -263,6 +284,8 @@ class _GameScreenState extends State<GameScreen> {
                       _selectedFrom == null ? {} : _legalToPointsFor(_selectedFrom!),
                   selectedFrom: _selectedFrom,
                   lastMovePoints: _lastMovePoints,
+                  animatingMove: _animatingMove,
+                  animatingIsPlayerA: _animatingIsPlayerA,
                   onTapPoint: _onTapPoint,
                 ),
               ),
