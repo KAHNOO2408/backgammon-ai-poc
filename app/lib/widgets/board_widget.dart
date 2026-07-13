@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/backgammon_position.dart';
 
@@ -70,7 +69,49 @@ class BoardWidget extends StatelessWidget {
           if (hintMoves != null && hintMoves!.isNotEmpty)
             Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(painter: _ArrowPainter(hintMoves!)),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final w = constraints.maxWidth;
+                    final h = constraints.maxHeight;
+                    final n = hintMoves!.length;
+                    return Stack(
+                      children: List.generate(n, (i) {
+                        final m = hintMoves![i];
+                        var from = _PointLayout.centerOf(m.from, w, h);
+                        var to = _PointLayout.centerOf(m.to, w, h);
+
+                        final dir = to - from;
+                        final len = dir.distance;
+                        if (len > 0) {
+                          final perp = Offset(-dir.dy, dir.dx) / len;
+                          final offsetIndex = i - (n - 1) / 2;
+                          final shift = perp * offsetIndex * 14;
+                          from += shift;
+                          to += shift;
+                        }
+
+                        final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
+                        final angle = (to - from).direction;
+                        final arrowLength = (to - from).distance.clamp(30.0, 10000.0);
+                        const arrowThickness = 24.0;
+
+                        return Positioned(
+                          left: mid.dx - arrowLength / 2,
+                          top: mid.dy - arrowThickness / 2,
+                          width: arrowLength,
+                          height: arrowThickness,
+                          child: Transform.rotate(
+                            angle: angle,
+                            child: Image.asset(
+                              'assets/images/arrow.png',
+                              fit: BoxFit.fill,
+                            ),
+                          ),
+                        );
+                      }),
+                    );
+                  },
+                ),
               ),
             ),
         ],
@@ -289,64 +330,6 @@ class _PointLayout {
     }
     return Offset(x, y);
   }
-}
-
-class _ArrowPainter extends CustomPainter {
-  final List<PipMove> moves;
-  _ArrowPainter(this.moves);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.redAccent.shade700
-      ..strokeWidth = 4.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    // Spread out parallel arrows that point in (roughly) the same direction
-    // so they don't overlap each other.
-    final n = moves.length;
-    for (var i = 0; i < n; i++) {
-      final m = moves[i];
-      var from = _PointLayout.centerOf(m.from, size.width, size.height);
-      var to = _PointLayout.centerOf(m.to, size.width, size.height);
-
-      final dir = to - from;
-      final len = dir.distance;
-      if (len > 0) {
-        final perp = Offset(-dir.dy, dir.dx) / len;
-        final offsetIndex = i - (n - 1) / 2;
-        final shift = perp * offsetIndex * 10;
-        from += shift;
-        to += shift;
-      }
-
-      canvas.drawLine(from, to, linePaint);
-      _drawArrowHead(canvas, from, to, linePaint);
-    }
-  }
-
-  void _drawArrowHead(Canvas canvas, Offset from, Offset to, Paint paint) {
-    const arrowLength = 15.0;
-    const arrowAngle = 0.45;
-    final angle = (to - from).direction;
-    final p1 = to -
-        Offset(arrowLength * cos(angle - arrowAngle), arrowLength * sin(angle - arrowAngle));
-    final p2 = to -
-        Offset(arrowLength * cos(angle + arrowAngle), arrowLength * sin(angle + arrowAngle));
-    final headPaint = Paint()
-      ..color = paint.color
-      ..style = PaintingStyle.fill;
-    final path = Path()
-      ..moveTo(to.dx, to.dy)
-      ..lineTo(p1.dx, p1.dy)
-      ..lineTo(p2.dx, p2.dy)
-      ..close();
-    canvas.drawPath(path, headPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArrowPainter oldDelegate) => true;
 }
 
 class _TrianglePainter extends CustomPainter {
