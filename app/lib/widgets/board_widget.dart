@@ -30,9 +30,10 @@ class BoardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         Expanded(
           child: AspectRatio(
             aspectRatio: 4 / 3,
@@ -123,7 +124,8 @@ class BoardWidget extends StatelessWidget {
           ),
         ),
         _offTray(),
-      ],
+        ],
+      ),
     );
   }
 
