@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/backgammon_position.dart';
 
@@ -77,52 +78,54 @@ class BoardWidget extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // Point numbers, drawn on the wood frame itself.
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Stack(
+                          children: [
+                            for (final p in const [
+                              13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24
+                            ])
+                              Positioned(
+                                left: _PointLayout.centerOf(p, w, h).dx - 12,
+                                top: padY * 0.12,
+                                width: 24,
+                                child: Text(
+                                  '$p',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFFF3DDB0),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            for (final p in const [
+                              12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+                            ])
+                              Positioned(
+                                left: _PointLayout.centerOf(p, w, h).dx - 12,
+                                bottom: padY * 0.12,
+                                width: 24,
+                                child: Text(
+                                  '$p',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFFF3DDB0),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                     if (hintMoves != null && hintMoves!.isNotEmpty)
                       Positioned.fill(
                         child: IgnorePointer(
-                          child: Builder(
-                            builder: (context) {
-                              final combined = _combineChain(hintMoves!);
-                              return Stack(
-                                children: List.generate(combined.length, (i) {
-                                  final n = combined.length;
-                                  final m = combined[i];
-                                  var from = _PointLayout.centerOf(m.from, w, h);
-                                  var to = _PointLayout.centerOf(m.to, w, h);
-
-                                  final dir = to - from;
-                                  final len = dir.distance;
-                                  if (len > 0) {
-                                    final perp = Offset(-dir.dy, dir.dx) / len;
-                                    final offsetIndex = i - (n - 1) / 2;
-                                    final shift = perp * offsetIndex * 16;
-                                    from += shift;
-                                    to += shift;
-                                  }
-
-                                  final mid = Offset(
-                                      (from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
-                                  final angle = (to - from).direction;
-                                  final arrowLength =
-                                      (to - from).distance.clamp(30.0, 10000.0);
-                                  const arrowThickness = 40.0;
-
-                                  return Positioned(
-                                    left: mid.dx - arrowLength / 2,
-                                    top: mid.dy - arrowThickness / 2,
-                                    width: arrowLength,
-                                    height: arrowThickness,
-                                    child: Transform.rotate(
-                                      angle: angle,
-                                      child: Image.asset(
-                                        'assets/images/arrow.png',
-                                        fit: BoxFit.fill,
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              );
-                            },
+                          child: CustomPaint(
+                            painter: _ArrowPainter(_combineChain(hintMoves!)),
                           ),
                         ),
                       ),
@@ -132,31 +135,40 @@ class BoardWidget extends StatelessWidget {
                           child: TweenAnimationBuilder<double>(
                             key: ValueKey(animatingMove),
                             tween: Tween(begin: 0.0, end: 1.0),
-                            duration: const Duration(milliseconds: 320),
+                            duration: const Duration(milliseconds: 340),
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
                               final from =
                                   _PointLayout.centerOf(animatingMove!.from, w, h);
                               final to = _PointLayout.centerOf(animatingMove!.to, w, h);
                               final pos = Offset.lerp(from, to, t)!;
+                              final hop = sin(t * pi) * (h * 0.06);
+                              final scale = 1.0 + sin(t * pi) * 0.18;
                               const size = 18.0;
                               return Positioned(
                                 left: pos.dx - size / 2,
-                                top: pos.dy - size / 2,
+                                top: pos.dy - size / 2 - hop,
                                 width: size,
                                 height: size,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: animatingIsPlayerA
-                                          ? [Colors.white, Colors.grey.shade300]
-                                          : [Colors.grey.shade800, Colors.black],
+                                child: Transform.scale(
+                                  scale: scale,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: RadialGradient(
+                                        colors: animatingIsPlayerA
+                                            ? [Colors.white, Colors.grey.shade300]
+                                            : [Colors.grey.shade800, Colors.black],
+                                      ),
+                                      border: Border.all(
+                                          color: animatingIsPlayerA
+                                              ? Colors.black54
+                                              : Colors.white,
+                                          width: 1.3),
+                                      boxShadow: const [
+                                        BoxShadow(color: Colors.black45, blurRadius: 3),
+                                      ],
                                     ),
-                                    border: Border.all(color: Colors.black54, width: 1),
-                                    boxShadow: const [
-                                      BoxShadow(color: Colors.black45, blurRadius: 2),
-                                    ],
                                   ),
                                 ),
                               );
@@ -224,21 +236,6 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
-          Positioned(
-            top: top ? 2 : null,
-            bottom: top ? null : 2,
-            left: 0,
-            right: 0,
-            child: Text(
-              '$point',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 9,
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
           // Checkers auto-shrink/overlap to always fit within the triangle's
           // bounds, no matter how many are stacked on this point.
           Positioned.fill(
@@ -290,7 +287,7 @@ class BoardWidget extends StatelessWidget {
               ? [Colors.white, Colors.grey.shade300]
               : [Colors.grey.shade800, Colors.black],
         ),
-        border: Border.all(color: Colors.black54, width: 1),
+        border: Border.all(color: isPlayerA ? Colors.black54 : Colors.white, width: 1.3),
         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 1)],
       ),
     );
@@ -304,7 +301,7 @@ class BoardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: isPlayerA ? Colors.white : Colors.black87,
-        border: Border.all(color: Colors.grey.shade600),
+        border: Border.all(color: isPlayerA ? Colors.black54 : Colors.white, width: 1.3),
       ),
     );
   }
@@ -425,6 +422,64 @@ class _PointLayout {
     }
     return Offset(x, y);
   }
+}
+
+class _ArrowPainter extends CustomPainter {
+  final List<PipMove> moves;
+  _ArrowPainter(this.moves);
+
+  static const Color _arrowColor = Color(0xFFD32F2F);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = _arrowColor
+      ..strokeWidth = 9
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final n = moves.length;
+    for (var i = 0; i < n; i++) {
+      final m = moves[i];
+      var from = _PointLayout.centerOf(m.from, size.width, size.height);
+      var to = _PointLayout.centerOf(m.to, size.width, size.height);
+
+      final dir = to - from;
+      final len = dir.distance;
+      if (len > 0) {
+        final perp = Offset(-dir.dy, dir.dx) / len;
+        final offsetIndex = i - (n - 1) / 2;
+        final shift = perp * offsetIndex * 18;
+        from += shift;
+        to += shift;
+      }
+
+      canvas.drawLine(from, to, linePaint);
+      _drawArrowHead(canvas, from, to);
+    }
+  }
+
+  void _drawArrowHead(Canvas canvas, Offset from, Offset to) {
+    const headLength = 24.0;
+    const headAngle = 0.5;
+    final angle = (to - from).direction;
+    final p1 = to -
+        Offset(headLength * cos(angle - headAngle), headLength * sin(angle - headAngle));
+    final p2 = to -
+        Offset(headLength * cos(angle + headAngle), headLength * sin(angle + headAngle));
+    final headPaint = Paint()
+      ..color = _arrowColor
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(path, headPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) => true;
 }
 
 class _TrianglePainter extends CustomPainter {
