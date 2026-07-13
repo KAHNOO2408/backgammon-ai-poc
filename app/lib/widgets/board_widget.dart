@@ -514,7 +514,7 @@ class _ArrowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
       ..color = _arrowColor
-      ..strokeWidth = 9
+      ..strokeWidth = 6
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -529,7 +529,7 @@ class _ArrowPainter extends CustomPainter {
       if (len > 0) {
         final perp = Offset(-dir.dy, dir.dx) / len;
         final offsetIndex = i - (n - 1) / 2;
-        final shift = perp * offsetIndex * 18;
+        final shift = perp * offsetIndex * 14;
         from += shift;
         to += shift;
       }
@@ -540,7 +540,7 @@ class _ArrowPainter extends CustomPainter {
   }
 
   void _drawArrowHead(Canvas canvas, Offset from, Offset to) {
-    const headLength = 24.0;
+    const headLength = 18.0;
     const headAngle = 0.5;
     final angle = (to - from).direction;
     final p1 = to -
