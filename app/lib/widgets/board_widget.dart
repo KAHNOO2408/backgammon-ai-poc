@@ -135,42 +135,73 @@ class BoardWidget extends StatelessWidget {
                           child: TweenAnimationBuilder<double>(
                             key: ValueKey(animatingMove),
                             tween: Tween(begin: 0.0, end: 1.0),
-                            duration: const Duration(milliseconds: 340),
+                            duration: const Duration(milliseconds: 500),
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
                               final from =
                                   _PointLayout.centerOf(animatingMove!.from, w, h);
                               final to = _PointLayout.centerOf(animatingMove!.to, w, h);
-                              final pos = Offset.lerp(from, to, t)!;
-                              final hop = sin(t * pi) * (h * 0.06);
-                              final scale = 1.0 + sin(t * pi) * 0.18;
                               const size = 18.0;
-                              return Positioned(
-                                left: pos.dx - size / 2,
-                                top: pos.dy - size / 2 - hop,
-                                width: size,
-                                height: size,
-                                child: Transform.scale(
-                                  scale: scale,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: RadialGradient(
-                                        colors: animatingIsPlayerA
-                                            ? [Colors.white, Colors.grey.shade300]
-                                            : [Colors.grey.shade800, Colors.black],
-                                      ),
-                                      border: Border.all(
-                                          color: animatingIsPlayerA
-                                              ? Colors.black54
-                                              : Colors.white,
-                                          width: 1.3),
-                                      boxShadow: const [
-                                        BoxShadow(color: Colors.black45, blurRadius: 3),
-                                      ],
+
+                              Offset posAt(double tt) {
+                                final p = Offset.lerp(from, to, tt)!;
+                                final hop = sin(tt * pi) * (h * 0.06);
+                                return Offset(p.dx, p.dy - hop);
+                              }
+
+                              final checkerDecoration = BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: animatingIsPlayerA
+                                      ? [Colors.white, Colors.grey.shade300]
+                                      : [Colors.grey.shade800, Colors.black],
+                                ),
+                                border: Border.all(
+                                    color: animatingIsPlayerA
+                                        ? Colors.black54
+                                        : Colors.white,
+                                    width: 1.3),
+                                boxShadow: const [
+                                  BoxShadow(color: Colors.black45, blurRadius: 3),
+                                ],
+                              );
+
+                              // A short fading trail of echoes behind the checker.
+                              const trailSteps = [0.16, 0.11, 0.06];
+                              final trail = <Widget>[];
+                              for (final d in trailSteps) {
+                                final tt = t - d;
+                                if (tt <= 0) continue;
+                                final p = posAt(tt);
+                                trail.add(Positioned(
+                                  left: p.dx - size / 2,
+                                  top: p.dy - size / 2,
+                                  width: size,
+                                  height: size,
+                                  child: Opacity(
+                                    opacity: (0.28 * (1 - d / 0.2)).clamp(0.0, 0.28),
+                                    child: DecoratedBox(decoration: checkerDecoration),
+                                  ),
+                                ));
+                              }
+
+                              final scale = 1.0 + sin(t * pi) * 0.18;
+                              final pos = posAt(t);
+
+                              return Stack(
+                                children: [
+                                  ...trail,
+                                  Positioned(
+                                    left: pos.dx - size / 2,
+                                    top: pos.dy - size / 2,
+                                    width: size,
+                                    height: size,
+                                    child: Transform.scale(
+                                      scale: scale,
+                                      child: DecoratedBox(decoration: checkerDecoration),
                                     ),
                                   ),
-                                ),
+                                ],
                               );
                             },
                           ),
@@ -236,8 +267,6 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
-          // Checkers auto-shrink/overlap to always fit within the triangle's
-          // bounds, no matter how many are stacked on this point.
           Positioned.fill(
             child: _checkerStack(count.abs(), isPlayerA, top),
           ),
