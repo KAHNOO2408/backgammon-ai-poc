@@ -40,7 +40,7 @@ class BoardWidget extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('BUILD-CHECK-9', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
+        const Text('BUILD-CHECK-10', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
         IntrinsicHeight(
           child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,10 +150,18 @@ class BoardWidget extends StatelessWidget {
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
                               final mover = animatingIsPlayerA ? Player.a : Player.b;
+                              final fromIsTopRow =
+                                  animatingMove!.from >= 13 && animatingMove!.from <= 24;
+                              final fromCount =
+                                  (animatingMove!.from >= 1 && animatingMove!.from <= 24)
+                                      ? position.countAt(mover, animatingMove!.from)
+                                      : 0;
+                              final fromSlot =
+                                  fromIsTopRow ? 0 : (fromCount - 1).clamp(0, 999);
                               final from = animatingMove!.from == barPoint
                                   ? _PointLayout.centerOf(barPoint, w, h)
                                   : _PointLayout.landingOffset(
-                                      animatingMove!.from, 0, w, h);
+                                      animatingMove!.from, fromSlot, w, h);
                               final existingAtDest =
                                   (animatingMove!.to >= 1 && animatingMove!.to <= 24)
                                       ? position.countAt(mover, animatingMove!.to)
@@ -285,8 +293,10 @@ class BoardWidget extends StatelessWidget {
               count.abs(),
               isPlayerA,
               top,
-              growIndex: isSelected ? 0 : null,
-              hideIndex: (animatingMove != null && animatingMove!.from == point) ? 0 : null,
+              growIndex: isSelected ? (top ? 0 : count.abs() - 1) : null,
+              hideIndex: (animatingMove != null && animatingMove!.from == point)
+                  ? (top ? 0 : count.abs() - 1)
+                  : null,
             ),
           ),
           if (isLegalTo) Positioned.fill(child: _legalToRing(count.abs(), top)),
@@ -325,7 +335,7 @@ class BoardWidget extends StatelessWidget {
               height: diameter,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFF00FF), width: 6),
+                border: Border.all(color: const Color(0xFF29CC5A), width: 4),
               ),
             ),
           ),
@@ -473,9 +483,12 @@ class BoardWidget extends StatelessWidget {
     var pos = startPos;
     final raw = <_ArrowSegment>[];
     for (final m in moves) {
+      final fromIsTopRow = m.from >= 13 && m.from <= 24;
+      final fromCount = m.from == barPoint ? 0 : pos.countAt(mover, m.from);
+      final fromSlot = fromIsTopRow ? 0 : (fromCount - 1).clamp(0, 999);
       final fromOffset = m.from == barPoint
           ? _PointLayout.centerOf(barPoint, w, h)
-          : _PointLayout.landingOffset(m.from, 0, w, h);
+          : _PointLayout.landingOffset(m.from, fromSlot, w, h);
       final toOffset = m.to == offPoint
           ? _PointLayout.centerOf(offPoint, w, h)
           : _PointLayout.landingOffset(m.to, pos.countAt(mover, m.to), w, h);
