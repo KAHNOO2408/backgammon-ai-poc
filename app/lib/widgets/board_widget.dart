@@ -9,6 +9,7 @@ class BoardWidget extends StatelessWidget {
   final int? selectedFrom;
   final Set<int> lastMovePoints;
   final List<PipMove>? hintMoves;
+  final Player? hintMover;
   final PipMove? animatingMove;
   final bool animatingIsPlayerA;
   final void Function(int point) onTapPoint;
@@ -23,6 +24,7 @@ class BoardWidget extends StatelessWidget {
     required this.lastMovePoints,
     required this.onTapPoint,
     this.hintMoves,
+    this.hintMover,
     this.animatingMove,
     this.animatingIsPlayerA = true,
     this.interactive = true,
@@ -121,11 +123,12 @@ class BoardWidget extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (hintMoves != null && hintMoves!.isNotEmpty)
+                    if (hintMoves != null && hintMoves!.isNotEmpty && hintMover != null)
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
-                            painter: _ArrowPainter(_combineChain(hintMoves!)),
+                            painter: _ArrowPainter(_buildArrowSegments(
+                                hintMoves!, position, hintMover!, w, h)),
                           ),
                         ),
                       ),
@@ -140,9 +143,10 @@ class BoardWidget extends StatelessWidget {
                             builder: (context, t, child) {
                               final from =
                                   _PointLayout.centerOf(animatingMove!.from, w, h);
+                              final mover = animatingIsPlayerA ? Player.a : Player.b;
                               final existingAtDest =
                                   (animatingMove!.to >= 1 && animatingMove!.to <= 24)
-                                      ? position.points[animatingMove!.to].abs()
+                                      ? position.countAt(mover, animatingMove!.to)
                                       : 0;
                               final to = _PointLayout.landingOffset(
                                   animatingMove!.to, existingAtDest, w, h);
@@ -453,22 +457,40 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
-  /// Combines consecutive moves of the same checker (e.g. 24/18 then 18/13)
-  /// into a single move (24/13) so the hint draws one arrow, not two.
-  static List<PipMove> _combineChain(List<PipMove> moves) {
-    if (moves.isEmpty) return moves;
-    final result = <PipMove>[];
-    var current = moves.first;
-    for (var i = 1; i < moves.length; i++) {
-      final next = moves[i];
-      if (next.from == current.to) {
-        current = PipMove(from: current.from, to: next.to);
-      } else {
-        result.add(current);
-        current = next;
-      }
+  /// Simulates the position through [moves] (for [mover]) to find where the
+  /// top checker at each source point actually sits, and where it actually
+  /// lands at the destination - then merges consecutive same-checker moves
+  /// (e.g. 24/18 then 18/13) into one arrow spanning the whole chain.
+  static List<_ArrowSegment> _buildArrowSegments(
+    List<PipMove> moves,
+    BackgammonPosition startPos,
+    Player mover,
+    double w,
+    double h,
+  ) {
+    var pos = startPos;
+    final raw = <_ArrowSegment>[];
+    for (final m in moves) {
+      final fromOffset = m.from == barPoint
+          ? _PointLayout.centerOf(barPoint, w, h)
+          : _PointLayout.landingOffset(m.from, pos.countAt(mover, m.from) - 1, w, h);
+      final toOffset = m.to == offPoint
+          ? _PointLayout.centerOf(offPoint, w, h)
+          : _PointLayout.landingOffset(m.to, pos.countAt(mover, m.to), w, h);
+      raw.add(_ArrowSegment(fromOffset, toOffset));
+      pos = pos.applyMove(mover, m);
     }
-    result.add(current);
+
+    final result = <_ArrowSegment>[];
+    var i = 0;
+    while (i < moves.length) {
+      var j = i;
+      while (j + 1 < moves.length && moves[j + 1].from == moves[j].to) {
+        j++;
+      }
+      result.add(_ArrowSegment(raw[i].from, raw[j].to));
+      i = j + 1;
+    }
     return result;
   }
 }
@@ -536,9 +558,15 @@ class _PointLayout {
   }
 }
 
+class _ArrowSegment {
+  final Offset from;
+  final Offset to;
+  _ArrowSegment(this.from, this.to);
+}
+
 class _ArrowPainter extends CustomPainter {
-  final List<PipMove> moves;
-  _ArrowPainter(this.moves);
+  final List<_ArrowSegment> segments;
+  _ArrowPainter(this.segments);
 
   static const Color _arrowColor = Color(0xFFD32F2F);
 
@@ -550,24 +578,9 @@ class _ArrowPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    final n = moves.length;
-    for (var i = 0; i < n; i++) {
-      final m = moves[i];
-      var from = _PointLayout.centerOf(m.from, size.width, size.height);
-      var to = _PointLayout.centerOf(m.to, size.width, size.height);
-
-      final dir = to - from;
-      final len = dir.distance;
-      if (len > 0) {
-        final perp = Offset(-dir.dy, dir.dx) / len;
-        final offsetIndex = i - (n - 1) / 2;
-        final shift = perp * offsetIndex * 14;
-        from += shift;
-        to += shift;
-      }
-
-      canvas.drawLine(from, to, linePaint);
-      _drawArrowHead(canvas, from, to);
+    for (final seg in segments) {
+      canvas.drawLine(seg.from, seg.to, linePaint);
+      _drawArrowHead(canvas, seg.from, seg.to);
     }
   }
 
