@@ -32,6 +32,7 @@ class _GameScreenState extends State<GameScreen> {
   WildbgEngine? _engine;
   String? _engineError;
   final _random = Random();
+  bool _imagePrecached = false;
 
   @override
   void initState() {
@@ -41,6 +42,15 @@ class _GameScreenState extends State<GameScreen> {
       _engine = WildbgEngine();
     } catch (e) {
       _engineError = e.toString();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_imagePrecached) {
+      _imagePrecached = true;
+      precacheImage(const AssetImage('assets/images/wood_board.png'), context);
     }
   }
 
