@@ -141,9 +141,18 @@ class BoardWidget extends StatelessWidget {
                             duration: const Duration(milliseconds: 500),
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
-                              final from =
-                                  _PointLayout.centerOf(animatingMove!.from, w, h);
                               final mover = animatingIsPlayerA ? Player.a : Player.b;
+                              final fromCount =
+                                  (animatingMove!.from >= 1 && animatingMove!.from <= 24)
+                                      ? position.countAt(mover, animatingMove!.from)
+                                      : 0;
+                              final from = animatingMove!.from == barPoint
+                                  ? _PointLayout.centerOf(barPoint, w, h)
+                                  : _PointLayout.landingOffset(
+                                      animatingMove!.from,
+                                      (fromCount - 1).clamp(0, 999),
+                                      w,
+                                      h);
                               final existingAtDest =
                                   (animatingMove!.to >= 1 && animatingMove!.to <= 24)
                                       ? position.countAt(mover, animatingMove!.to)
@@ -152,11 +161,7 @@ class BoardWidget extends StatelessWidget {
                                   animatingMove!.to, existingAtDest, w, h);
                               const size = 18.0;
 
-                              Offset posAt(double tt) {
-                                final p = Offset.lerp(from, to, tt)!;
-                                final hop = sin(tt * pi) * (h * 0.06);
-                                return Offset(p.dx, p.dy - hop);
-                              }
+                              Offset posAt(double tt) => Offset.lerp(from, to, tt)!;
 
                               final checkerDecoration = BoxDecoration(
                                 shape: BoxShape.circle,
@@ -194,7 +199,6 @@ class BoardWidget extends StatelessWidget {
                                 ));
                               }
 
-                              final scale = 1.0 + sin(t * pi) * 0.18;
                               final pos = posAt(t);
 
                               return Stack(
@@ -205,10 +209,7 @@ class BoardWidget extends StatelessWidget {
                                     top: pos.dy - size / 2,
                                     width: size,
                                     height: size,
-                                    child: Transform.scale(
-                                      scale: scale,
-                                      child: DecoratedBox(decoration: checkerDecoration),
-                                    ),
+                                    child: DecoratedBox(decoration: checkerDecoration),
                                   ),
                                 ],
                               );
@@ -274,8 +275,6 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
-          // Checkers auto-shrink/overlap to always fit within the triangle's
-          // bounds, no matter how many are stacked on this point.
           Positioned.fill(
             child: _checkerStack(
               count.abs(),
@@ -457,10 +456,6 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
-  /// Simulates the position through [moves] (for [mover]) to find where the
-  /// top checker at each source point actually sits, and where it actually
-  /// lands at the destination - then merges consecutive same-checker moves
-  /// (e.g. 24/18 then 18/13) into one arrow spanning the whole chain.
   static List<_ArrowSegment> _buildArrowSegments(
     List<PipMove> moves,
     BackgammonPosition startPos,
@@ -534,9 +529,6 @@ class _PointLayout {
     return Offset(r.left + r.width / 2, r.top + r.height / 2);
   }
 
-  /// Where the (existingCount)-th checker (0-indexed - i.e. the *next* one
-  /// to arrive) actually lands, matching the same overlap math used for
-  /// rendering the stack. Falls back to the plain center for bar/off.
   static Offset landingOffset(int point, int existingCount, double width, double height) {
     if (point == barPoint || point == offPoint) return centerOf(point, width, height);
     final r = cellRect(point, width, height);
