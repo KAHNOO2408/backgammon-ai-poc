@@ -455,6 +455,7 @@ class _GameScreenState extends State<GameScreen> {
                   selectedFrom: null,
                   lastMovePoints: const {},
                   hintMoves: _autoHint,
+                  hintMover: _currentPlayer,
                   onTapPoint: (_) {},
                   interactive: false,
                 ),
