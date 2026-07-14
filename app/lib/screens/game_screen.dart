@@ -208,30 +208,6 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  /// The position to actually render on the main board. While a move is
-  /// animating, the moving checker is removed from its origin here (it's
-  /// "in flight" as the ghost checker), so it doesn't look duplicated.
-  BackgammonPosition get _displayPosition {
-    final m = _animatingMove;
-    if (m == null) return _position;
-    final pts = List<int>.from(_position.points);
-    var barA = _position.barA;
-    var barB = _position.barB;
-    final mover = _animatingIsPlayerA ? Player.a : Player.b;
-    if (m.from == barPoint) {
-      mover == Player.a ? barA-- : barB--;
-    } else {
-      pts[m.from] += (mover == Player.a ? -1 : 1);
-    }
-    return BackgammonPosition(
-      points: pts,
-      barA: barA,
-      barB: barB,
-      offA: _position.offA,
-      offB: _position.offB,
-    );
-  }
-
   void _checkTurnComplete() {
     final maxLen = _legalSequences.isEmpty ? 0 : _legalSequences.first.length;
     if (_movesMade.length >= maxLen) {
@@ -415,7 +391,7 @@ class _GameScreenState extends State<GameScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: BoardWidget(
-                  position: _displayPosition,
+                  position: _position,
                   legalFromPoints: _selectedFrom == null ? _legalFromPoints : {},
                   legalToPoints:
                       _selectedFrom == null ? {} : _legalToPointsFor(_selectedFrom!),
