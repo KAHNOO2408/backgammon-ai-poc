@@ -40,7 +40,7 @@ class BoardWidget extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('BUILD-CHECK-11', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
+        const Text('BUILD-CHECK-12', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
         IntrinsicHeight(
           child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -318,13 +318,17 @@ class BoardWidget extends StatelessWidget {
                 : ((availH - diameter) / (n - 1)).clamp(0.0, naturalStep));
         final offset = existingCount * step;
 
-        return Positioned(
-          top: top ? offset : null,
-          bottom: top ? null : offset,
-          left: (availW - diameter) / 2,
-          width: diameter,
-          height: diameter,
-          child: CustomPaint(painter: _RingPainter()),
+        return Stack(
+          children: [
+            Positioned(
+              top: top ? offset : null,
+              bottom: top ? null : offset,
+              left: (availW - diameter) / 2,
+              width: diameter,
+              height: diameter,
+              child: CustomPaint(painter: _RingPainter()),
+            ),
+          ],
         );
       },
     );
