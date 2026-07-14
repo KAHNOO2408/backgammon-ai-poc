@@ -130,11 +130,11 @@ class BackgammonPosition {
       if (pipValue == die) {
         moves.add(PipMove(from: from, to: offPoint));
       } else if (pipValue < die) {
-        // Legal only if no checker sits further from home than this one.
+        // Legal only if no checker sits further from home than this one
+        // (i.e. on a higher pip-value point within the home board).
         final hasFurther = p == Player.a
-            ? List.generate(from - 1, (i) => i + 1).any((pt) => countAt(p, pt) > 0)
-            : List.generate(24 - from, (i) => from + 1 + i)
-                .any((pt) => countAt(p, pt) > 0);
+            ? List.generate(6 - from, (i) => from + 1 + i).any((pt) => countAt(p, pt) > 0)
+            : List.generate(from - 19, (i) => 19 + i).any((pt) => countAt(p, pt) > 0);
         if (!hasFurther) {
           moves.add(PipMove(from: from, to: offPoint));
         }
@@ -193,10 +193,13 @@ class TurnGenerator {
     final isDouble = dice[0] == dice[1];
     final dieValues = isDouble ? List<int>.filled(4, dice[0]) : [dice[0], dice[1]];
     final results = <List<PipMove>>[];
+    final resultsDiceUsed = <List<int>>[];
 
-    void search(BackgammonPosition pos, List<int> remaining, List<PipMove> soFar) {
+    void search(BackgammonPosition pos, List<int> remaining, List<PipMove> soFar,
+        List<int> diceSoFar) {
       if (remaining.isEmpty) {
         results.add(List<PipMove>.from(soFar));
+        resultsDiceUsed.add(List<int>.from(diceSoFar));
         return;
       }
       final die = remaining.first;
@@ -204,45 +207,44 @@ class TurnGenerator {
       final moves = pos.singleDieMoves(p, die);
       if (moves.isEmpty) {
         results.add(List<PipMove>.from(soFar));
+        resultsDiceUsed.add(List<int>.from(diceSoFar));
         return;
       }
       for (final m in moves) {
-        search(pos.applyMove(p, m), rest, [...soFar, m]);
+        search(pos.applyMove(p, m), rest, [...soFar, m], [...diceSoFar, die]);
       }
     }
 
     if (!isDouble) {
-      search(position, [dieValues[0], dieValues[1]], []);
-      search(position, [dieValues[1], dieValues[0]], []);
+      search(position, [dieValues[0], dieValues[1]], [], []);
+      search(position, [dieValues[1], dieValues[0]], [], []);
     } else {
-      search(position, dieValues, []);
+      search(position, dieValues, [], []);
     }
 
     if (results.isEmpty) return [];
 
     final maxLen = results.map((s) => s.length).reduce((a, b) => a > b ? a : b);
-    var best = results.where((s) => s.length == maxLen).toList();
+    var bestIndices = [
+      for (var i = 0; i < results.length; i++)
+        if (results[i].length == maxLen) i
+    ];
 
     if (!isDouble && maxLen == 1) {
       final high = dieValues.reduce((a, b) => a > b ? a : b);
-      final canUseHigh = best.any((s) => _dieUsed(p, s.first) == high);
+      final canUseHigh = bestIndices.any((i) => resultsDiceUsed[i].first == high);
       if (canUseHigh) {
-        best = best.where((s) => _dieUsed(p, s.first) == high).toList();
+        bestIndices = bestIndices.where((i) => resultsDiceUsed[i].first == high).toList();
       }
     }
 
     final seen = <String>{};
     final deduped = <List<PipMove>>[];
-    for (final s in best) {
+    for (final i in bestIndices) {
+      final s = results[i];
       final key = s.map((m) => '${m.from}-${m.to}').join(',');
       if (seen.add(key)) deduped.add(s);
     }
     return deduped;
-  }
-
-  static int _dieUsed(Player p, PipMove m) {
-    if (m.from == barPoint) return p == Player.a ? 25 - m.to : m.to;
-    if (m.to == offPoint) return p == Player.a ? m.from : 25 - m.from;
-    return p == Player.a ? m.from - m.to : m.to - m.from;
   }
 }
