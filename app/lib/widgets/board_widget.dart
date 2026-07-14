@@ -38,7 +38,11 @@ class BoardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IntrinsicHeight(
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('BUILD-CHECK-8', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
+          Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
         Expanded(
@@ -54,13 +58,17 @@ class BoardWidget extends StatelessWidget {
 
                 return Stack(
                   children: [
-                    Container(
-                      decoration: const BoxDecoration(
-                        image: DecorationImage(
-                          image: AssetImage('assets/images/wood_board.png'),
-                          fit: BoxFit.fill,
+                    RepaintBoundary(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          image: DecorationImage(
+                            image: AssetImage('assets/images/wood_board.png'),
+                            fit: BoxFit.fill,
+                          ),
                         ),
                       ),
+                    ),
+                    Padding(
                       padding: EdgeInsets.symmetric(horizontal: padX, vertical: padY),
                       child: Row(
                         children: [
@@ -142,17 +150,10 @@ class BoardWidget extends StatelessWidget {
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
                               final mover = animatingIsPlayerA ? Player.a : Player.b;
-                              final fromCount =
-                                  (animatingMove!.from >= 1 && animatingMove!.from <= 24)
-                                      ? position.countAt(mover, animatingMove!.from)
-                                      : 0;
                               final from = animatingMove!.from == barPoint
                                   ? _PointLayout.centerOf(barPoint, w, h)
                                   : _PointLayout.landingOffset(
-                                      animatingMove!.from,
-                                      (fromCount - 1).clamp(0, 999),
-                                      w,
-                                      h);
+                                      animatingMove!.from, 0, w, h);
                               final existingAtDest =
                                   (animatingMove!.to >= 1 && animatingMove!.to <= 24)
                                       ? position.countAt(mover, animatingMove!.to)
@@ -225,6 +226,8 @@ class BoardWidget extends StatelessWidget {
         ),
         _offTray(),
         ],
+          ),
+        ],
       ),
     );
   }
@@ -275,12 +278,15 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
           if (overlay != null) Positioned.fill(child: Container(color: overlay)),
+          // Checkers auto-shrink/overlap to always fit within the triangle's
+          // bounds, no matter how many are stacked on this point.
           Positioned.fill(
             child: _checkerStack(
               count.abs(),
               isPlayerA,
               top,
-              growIndex: isSelected ? count.abs() - 1 : null,
+              growIndex: isSelected ? 0 : null,
+              hideIndex: (animatingMove != null && animatingMove!.from == point) ? 0 : null,
             ),
           ),
           if (isLegalTo) Positioned.fill(child: _legalToRing(count.abs(), top)),
@@ -319,7 +325,7 @@ class BoardWidget extends StatelessWidget {
               height: diameter,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CD964), width: 3),
+                border: Border.all(color: const Color(0xFFFF00FF), width: 6),
               ),
             ),
           ),
@@ -328,7 +334,7 @@ class BoardWidget extends StatelessWidget {
     );
   }
 
-  Widget _checkerStack(int count, bool isPlayerA, bool top, {int? growIndex}) {
+  Widget _checkerStack(int count, bool isPlayerA, bool top, {int? growIndex, int? hideIndex}) {
     if (count == 0) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -346,6 +352,7 @@ class BoardWidget extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.none,
           children: List.generate(count, (i) {
+            if (i == hideIndex) return const SizedBox.shrink();
             final offset = i * step;
             Widget checker = _checker(isPlayerA, diameter);
             if (growIndex == i) {
@@ -468,7 +475,7 @@ class BoardWidget extends StatelessWidget {
     for (final m in moves) {
       final fromOffset = m.from == barPoint
           ? _PointLayout.centerOf(barPoint, w, h)
-          : _PointLayout.landingOffset(m.from, pos.countAt(mover, m.from) - 1, w, h);
+          : _PointLayout.landingOffset(m.from, 0, w, h);
       final toOffset = m.to == offPoint
           ? _PointLayout.centerOf(offPoint, w, h)
           : _PointLayout.landingOffset(m.to, pos.countAt(mover, m.to), w, h);
