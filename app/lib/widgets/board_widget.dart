@@ -40,7 +40,7 @@ class BoardWidget extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('BUILD-CHECK-10', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
+        const Text('BUILD-CHECK-11', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
         IntrinsicHeight(
           child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,14 +150,11 @@ class BoardWidget extends StatelessWidget {
                             curve: Curves.easeInOut,
                             builder: (context, t, child) {
                               final mover = animatingIsPlayerA ? Player.a : Player.b;
-                              final fromIsTopRow =
-                                  animatingMove!.from >= 13 && animatingMove!.from <= 24;
                               final fromCount =
                                   (animatingMove!.from >= 1 && animatingMove!.from <= 24)
                                       ? position.countAt(mover, animatingMove!.from)
                                       : 0;
-                              final fromSlot =
-                                  fromIsTopRow ? 0 : (fromCount - 1).clamp(0, 999);
+                              final fromSlot = (fromCount - 1).clamp(0, 999);
                               final from = animatingMove!.from == barPoint
                                   ? _PointLayout.centerOf(barPoint, w, h)
                                   : _PointLayout.landingOffset(
@@ -293,9 +290,9 @@ class BoardWidget extends StatelessWidget {
               count.abs(),
               isPlayerA,
               top,
-              growIndex: isSelected ? (top ? 0 : count.abs() - 1) : null,
+              growIndex: isSelected ? count.abs() - 1 : null,
               hideIndex: (animatingMove != null && animatingMove!.from == point)
-                  ? (top ? 0 : count.abs() - 1)
+                  ? count.abs() - 1
                   : null,
             ),
           ),
@@ -310,7 +307,7 @@ class BoardWidget extends StatelessWidget {
       builder: (context, constraints) {
         final availH = constraints.maxHeight;
         final availW = constraints.maxWidth;
-        final diameter = (availW * 0.82).clamp(8.0, 20.0);
+        final diameter = (availW * 0.9).clamp(16.0, 24.0);
         final naturalStep = diameter + 1;
         final n = existingCount + 1;
         final neededHeight = naturalStep * n;
@@ -325,20 +322,9 @@ class BoardWidget extends StatelessWidget {
           top: top ? offset : null,
           bottom: top ? null : offset,
           left: (availW - diameter) / 2,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.7, end: 1.0),
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
-            child: Container(
-              width: diameter,
-              height: diameter,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF29CC5A), width: 4),
-              ),
-            ),
-          ),
+          width: diameter,
+          height: diameter,
+          child: CustomPaint(painter: _RingPainter()),
         );
       },
     );
@@ -483,9 +469,7 @@ class BoardWidget extends StatelessWidget {
     var pos = startPos;
     final raw = <_ArrowSegment>[];
     for (final m in moves) {
-      final fromIsTopRow = m.from >= 13 && m.from <= 24;
-      final fromCount = m.from == barPoint ? 0 : pos.countAt(mover, m.from);
-      final fromSlot = fromIsTopRow ? 0 : (fromCount - 1).clamp(0, 999);
+      final fromSlot = m.from == barPoint ? 0 : (pos.countAt(mover, m.from) - 1).clamp(0, 999);
       final fromOffset = m.from == barPoint
           ? _PointLayout.centerOf(barPoint, w, h)
           : _PointLayout.landingOffset(m.from, fromSlot, w, h);
@@ -617,6 +601,35 @@ class _ArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ArrowPainter oldDelegate) => true;
+}
+
+class _RingPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide / 2) - 2;
+
+    // Black outline first (for contrast on any background), then green ring.
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.black87
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5,
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = const Color(0xFF29CC5A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter oldDelegate) => false;
 }
 
 class _TrianglePainter extends CustomPainter {
