@@ -37,12 +37,12 @@ class BoardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('BUILD-CHECK-8', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
-          Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('BUILD-CHECK-9', style: TextStyle(color: Colors.pink, fontSize: 10, fontWeight: FontWeight.bold)),
+        IntrinsicHeight(
+          child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
         Expanded(
@@ -227,8 +227,8 @@ class BoardWidget extends StatelessWidget {
         _offTray(),
         ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
